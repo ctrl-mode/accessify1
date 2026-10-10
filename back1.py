@@ -83,4 +83,4 @@ if st.button("Run Full AI Audit", type="primary"):
             # --- DISPLAY EXPLAINABLE AI (XAI) ---
             st.markdown("### 🧠 Explainable AI (XAI) Weights")
             st.caption("Which structural errors are driving the risk score?")
-            import
+            importances = rf_model.feature_importances_
