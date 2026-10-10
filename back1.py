@@ -47,7 +47,7 @@ st.markdown("Move beyond simple rule-based scanning. Use machine learning to det
 url_input = st.text_input("Enter Target URL", value="https://en.wikipedia.org/wiki/Main_Page")
 
 if st.button("Run Full AI Audit", type="primary"):
-    with st.spinner(f"Scraping and analyzing {url_input} ..."):
+    with st.spinner(f"Scraping and analysing {url_input} ..."):
         try:
             # Add a slight delay for dramatic effect during the demo
             time.sleep(1)
@@ -83,4 +83,43 @@ if st.button("Run Full AI Audit", type="primary"):
             # --- DISPLAY EXPLAINABLE AI (XAI) ---
             st.markdown("### 🧠 Explainable AI (XAI) Weights")
             st.caption("Which structural errors are driving the risk score?")
+            
             importances = rf_model.feature_importances_
+            
+            # Pure Python dictionary replacing Pandas
+            chart_data = {
+                "Impact Weight": {
+                    "Missing Alts": importances[0],
+                    "Empty Links": importances[1],
+                    "Unlabeled Buttons": importances[2]
+                }
+            }
+            st.bar_chart(chart_data)
+
+            # --- DISPLAY NLP TEXT ANALYSIS ---
+            st.markdown("### 📝 NLP 'Junk Alt-Text' Detection")
+            
+            if not all_alt_texts:
+                st.info("No alt-text attributes found to analyse.")
+            else:
+                X_live = vectorizer.transform(all_alt_texts)
+                predictions = nlp_model.predict(X_live)
+
+                junk_found = False
+                for text, prediction in zip(all_alt_texts, predictions):
+                    if text.strip() == "":
+                        st.error('🚫 **Detected Empty String:** " " (Junk)')
+                        junk_found = True
+                    elif prediction == 0:
+                        st.error(f'🚫 **Flagged by AI:** "{text}" (Junk)')
+                        junk_found = True
+                
+                if not junk_found:
+                    st.success("✅ All provided alt-texts passed the NLP quality check.")
+                    with st.expander("View Passed Alt-Texts"):
+                        for text in all_alt_texts:
+                            if text.strip() != "":
+                                st.write(f"- {text}")
+
+        except Exception as e:
+            st.error(f"Failed to scan website. Please check the URL or try another site. Error: {e}")
