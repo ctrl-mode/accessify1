@@ -1251,158 +1251,79 @@ elif page == "Remediation assistant":
                 st.download_button("Export checklist", "\n".join(f"- [ ] {entry}" for entry in checklist).encode("utf-8"), "accessify_remediation_checklist.md", "text/markdown")
 
 
-# --- Image-to-context accessibility engine ------------------------------------
+# --- Image-to-context accessibility engine (Local Vision AI / Zero API Keys) ---
 elif page == "Image-to-context":
     hero(
         "IMAGE-TO-CONTEXT ACCESSIBILITY",
         'Let the image explain <span class="ax-gradient">itself.</span>',
-        "Upload a graph, maths problem, diagram, screenshot, chart, or other image. Accessify uses vision AI to describe what is visible, transcribe mathematical notation, explain graph axes and trends, and produce screen-reader-friendly text—without requiring the developer to write an explanation first.",
+        "Upload a graph, diagram, screenshot, or photo. Accessify uses an open-source Vision AI running locally on your server to describe what is visible—generating contextual alt-text without requiring any external API keys.",
     )
-    st.markdown('<div class="ax-callout"><b>Privacy & provider setup:</b> analysis uses a vision-capable OpenAI model and requires an API key. The uploaded image is sent to that provider for analysis and may incur API charges. Avoid private or sensitive images unless you are allowed to share them. Always verify extracted equations, labels, and numeric values before relying on them.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="ax-callout"><b>Privacy & provider setup:</b> Analysis uses a local BLIP neural network. Images are never sent to third-party providers or external endpoints.</div>', unsafe_allow_html=True)
+
+    @st.cache_resource(show_spinner=False)
+    def get_local_vision_model():
+        from transformers import pipeline
+        return pipeline("image-to-text", model="Salesforce/blip-image-captioning-base")
 
     with st.container(border=True):
         uploaded_image = st.file_uploader(
             "Upload an image to understand",
             type=["png", "jpg", "jpeg", "webp"],
-            help="Best for graphs, plotted data, equations, geometry diagrams, science figures, tables, and screenshots.",
-            key="ax_image_context_upload",
+            key="ax_image_upload",
         )
-        api_key_input = st.text_input(
-            "OpenAI API key (optional if OPENAI_API_KEY is configured)",
-            value="",
-            type="password",
-            help="Session-only input. Prefer the OPENAI_API_KEY environment variable or Streamlit secrets. Never commit API keys to Git.",
-            key="ax_image_context_key",
-        )
-        vision_model = st.selectbox("Vision model", ["gpt-4.1-mini", "gpt-4o-mini", "gpt-4.1"], index=0, key="ax_image_context_model")
-        analysis_focus = st.multiselect(
-            "What should Accessify prioritize?",
-            ["Maths equations and notation", "Graphs: axes, scale, points and trends", "Diagram relationships", "Read visible text", "Tables and numerical values", "Screen-reader-friendly explanation"],
-            default=["Maths equations and notation", "Graphs: axes, scale, points and trends", "Read visible text", "Screen-reader-friendly explanation"],
-            key="ax_image_context_focus",
-        )
-        analyze_image = st.button("Analyze image → generate accessible context", type="primary", use_container_width=True, key="ax_analyze_uploaded_image")
-        if analyze_image:
+        
+        if st.button("Analyse image with Local AI →", type="primary", use_container_width=True):
             if not uploaded_image:
-                st.error("Upload an image first.")
-            else:
-                effective_key = api_key_input.strip() or os.getenv("OPENAI_API_KEY", "")
-                if not effective_key:
-                    st.error("Add an OpenAI API key or configure OPENAI_API_KEY before running image analysis.")
-                else:
-                    try:
-                        image_bytes = uploaded_image.getvalue()
-                        from PIL import Image
-                        from mimetypes import guess_type
-                        with Image.open(BytesIO(image_bytes)) as im:
-                            im.verify()
-                        mime_type = guess_type(uploaded_image.name)[0] or "image/png"
-                        if mime_type not in {"image/png", "image/jpeg", "image/webp"}:
-                            st.error("Please upload a PNG, JPEG, or WEBP image.")
-                        else:
-                            with st.spinner("Reading the image, checking its structure, and preparing accessible text…"):
-                                from openai import OpenAI
-                                client = OpenAI(api_key=effective_key)
-                                data_uri = "data:" + mime_type + ";base64," + base64.b64encode(image_bytes).decode("ascii")
-                                focus_text = ", ".join(analysis_focus) if analysis_focus else "Describe the image accurately for accessibility"
-                                prompt = f'''You are Accessify, an accessibility assistant specializing in mathematics, graphs, scientific diagrams, and image understanding. Analyze only what is visible in the supplied image. Do not invent unreadable values. If a value, symbol, unit, or label is uncertain, say so explicitly. Distinguish visual evidence from interpretation. Prioritize: {focus_text}.
-
-Return valid JSON only with these string keys:
-- summary: one concise overview of what the image contains.
-- alt_text: concise, useful alternative text for an HTML img element (roughly 15-35 words; include the key purpose/result, not generic phrases like 'image of').
-- long_description: a structured but plain-language description suitable for a screen-reader user, including important spatial relationships.
-- visible_text: faithfully transcribe readable text, labels, legends, units, and captions; use [uncertain] for unclear fragments.
-- maths_transcription: transcribe equations and mathematical notation in readable text and LaTeX where possible. Preserve signs, exponents, fractions, subscripts, limits, and units. Never guess a symbol without marking uncertainty.
-- graph_interpretation: for graphs/charts, identify chart type, title, x/y axes, units, scale, legend/series, visible points or ranges, overall trends, intersections/extrema if readable. If the image is not a graph, say that.
-- diagram_relationships: explain arrows, components, sequence, geometry, or cause-and-effect relationships visible in the diagram. If not applicable, say that.
-- uncertainty_notes: list any details that are too small, obscured, ambiguous, or impossible to infer from pixels alone.
-
-For graph values, only provide exact numeric values when they can be read from the axes or labels. Do not claim that you performed OCR perfectly. Make the output useful to someone who cannot see the image.'''
-                                response = client.responses.create(
-                                    model=vision_model,
-                                    input=[{"role": "user", "content": [
-                                        {"type": "input_text", "text": prompt},
-                                        {"type": "input_image", "image_url": data_uri, "detail": "high"},
-                                    ]}],
-                                )
-                                raw = getattr(response, "output_text", "") or ""
-                                match = re.search(r"\{.*\}", raw, flags=re.S)
-                                if not match:
-                                    raise ValueError("The vision model did not return structured JSON. Please try again.")
-                                analysis = json.loads(match.group(0))
-                                required_keys = ["summary", "alt_text", "long_description", "visible_text", "maths_transcription", "graph_interpretation", "diagram_relationships", "uncertainty_notes"]
-                                for key in required_keys:
-                                    analysis[key] = str(analysis.get(key, "Not identified." if key not in {"summary", "alt_text", "long_description"} else "Review the uploaded image."))
-                                analysis["filename"] = uploaded_image.name
-                                analysis["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                analysis["model"] = vision_model
-                                analysis["mime_type"] = mime_type
-                                st.session_state.ax_image_context_result = analysis
-                                st.session_state.ax_image_context_bytes = image_bytes
-                                st.session_state.ax_image_context_api_key = effective_key
-                                st.success("Image analyzed. Review the equations and numeric details before using them.")
-                    except Exception as exc:
-                        st.error(f"Image analysis could not complete: {exc}")
-
-    analysis = st.session_state.get("ax_image_context_result")
-    if analysis:
-        section("Accessible interpretation", "VISION ANALYSIS")
-        left, right = st.columns([0.9, 1.1], gap="large")
-        with left:
-            image_bytes = st.session_state.get("ax_image_context_bytes", b"")
-            if image_bytes:
-                st.image(image_bytes, caption=analysis.get("filename", "Uploaded image"), use_container_width=True)
-            st.markdown("### Summary")
-            st.write(analysis.get("summary", ""))
-            st.markdown("### Suggested alt text")
-            st.text_area("Edit alt text", value=analysis.get("alt_text", ""), height=100, key="ax_image_context_alt_edit", help="Review for accuracy and keep it focused on the image's purpose in context.")
-            st.markdown("**Screen-reader-ready HTML**")
-            alt_for_html = st.session_state.get("ax_image_context_alt_edit", analysis.get("alt_text", ""))
-            long_for_html = analysis.get("long_description", "")
-            accessible_html = f'<figure>\n  <img src="your-image.png" alt="{html.escape(alt_for_html, quote=True)}" aria-describedby="image-description">\n  <figcaption id="image-description">{html.escape(long_for_html)}</figcaption>\n</figure>'
-            st.code(accessible_html, language="html")
-        with right:
-            st.markdown("### Long description")
-            st.write(analysis.get("long_description", ""))
-            with st.expander("Maths & equations", expanded=True):
-                st.write(analysis.get("maths_transcription", ""))
-            with st.expander("Graph / chart interpretation", expanded=True):
-                st.write(analysis.get("graph_interpretation", ""))
-            with st.expander("Diagram relationships"):
-                st.write(analysis.get("diagram_relationships", ""))
-            with st.expander("Visible text and labels"):
-                st.text(analysis.get("visible_text", ""))
-            with st.expander("Uncertainty notes", expanded=bool(analysis.get("uncertainty_notes", "").strip())):
-                st.write(analysis.get("uncertainty_notes", ""))
-
-        export_payload = dict(analysis)
-        export_payload["alt_text"] = st.session_state.get("ax_image_context_alt_edit", analysis.get("alt_text", ""))
-        st.download_button("Download accessible interpretation (JSON)", json.dumps(export_payload, ensure_ascii=False, indent=2).encode("utf-8"), "accessify_image_context.json", "application/json", type="primary")
-        text_export = "IMAGE SUMMARY\n" + analysis.get("summary", "") + "\n\nALT TEXT\n" + export_payload["alt_text"] + "\n\nLONG DESCRIPTION\n" + analysis.get("long_description", "") + "\n\nMATHS TRANSCRIPTION\n" + analysis.get("maths_transcription", "") + "\n\nGRAPH INTERPRETATION\n" + analysis.get("graph_interpretation", "") + "\n\nVISIBLE TEXT\n" + analysis.get("visible_text", "") + "\n\nDIAGRAM RELATIONSHIPS\n" + analysis.get("diagram_relationships", "") + "\n\nUNCERTAINTY NOTES\n" + analysis.get("uncertainty_notes", "")
-        st.download_button("Download plain-text description", text_export.encode("utf-8"), "accessify_image_context.txt", "text/plain")
-        st.markdown("### Optional spoken narration")
-        st.caption("Narration reads the image summary and detailed description aloud. AI-generated speech may incur API charges.")
-        if st.button("Generate spoken narration", use_container_width=True, key="ax_image_context_tts"):
-            effective_key = api_key_input.strip() or os.getenv("OPENAI_API_KEY", "") or st.session_state.get("ax_image_context_api_key", "")
-            if not effective_key:
-                st.error("Add an OpenAI API key to enable narration.")
+                st.error("Please upload an image first.")
             else:
                 try:
-                    with st.spinner("Generating narration…"):
-                        audio = create_tts_audio("Image summary. " + analysis.get("summary", "") + ". Detailed description. " + analysis.get("long_description", "") + ". Graph interpretation. " + analysis.get("graph_interpretation", "") + ". Maths transcription. " + analysis.get("maths_transcription", ""), effective_key)
-                    st.session_state.ax_image_context_audio = audio
-                    st.success("Narration generated.")
-                except Exception as exc:
-                    st.error(f"Could not generate narration: {exc}")
-        if st.session_state.get("ax_image_context_audio"):
-            st.audio(st.session_state.ax_image_context_audio, format="audio/mp3")
-            st.download_button("Download narration MP3", st.session_state.ax_image_context_audio, "accessify_image_context_narration.mp3", "audio/mpeg")
-        st.caption("AI may misread small text, equations, graph scales, or overlapping lines. Verify all critical numeric and mathematical details against the original image.")
-    else:
-        st.info("Upload a maths graph, chart, equation, geometry diagram, scientific figure, table, or screenshot. Accessify will inspect the image itself—you do not need to type an explanation.")
-        st.markdown('<div class="ax-callout"><b>Designed for:</b> function plots, bar and line charts, coordinate geometry, equations, circuit diagrams, labelled scientific figures, and screenshots containing meaningful visual information.</div>', unsafe_allow_html=True)
+                    import json
+                    from io import BytesIO
+                    from PIL import Image
+                    import streamlit.components.v1 as components
+                    
+                    with st.spinner("Loading local neural network (this may take a minute on first run as weights download)..."):
+                        captioner = get_local_vision_model()
+                        
+                    with st.spinner("Neural network is analysing the image context..."):
+                        image = Image.open(BytesIO(uploaded_image.getvalue())).convert("RGB")
+                        
+                        # Generate the AI caption locally
+                        result = captioner(image, max_new_tokens=50)[0]["generated_text"]
+                        
+                        # Capitalise and format nicely
+                        alt_text = result.capitalize() + "."
+                        long_desc = f"An AI-generated description of the uploaded visual content: {alt_text}"
+                        
+                        st.success("Local Vision AI Analysis Complete!")
+                        
+                        left, right = st.columns([1, 1], gap="large")
+                        with left:
+                            st.image(uploaded_image, caption="Uploaded Source Image", use_container_width=True)
+                            
+                            st.markdown("### 🔊 Screen-Reader Narration")
+                            st.caption("Testing browser-native text-to-speech integration.")
+                            
+                            safe_text = json.dumps(f"Image description: {alt_text}", ensure_ascii=False)
+                            tts_html = f"""
+                            <div style="background:#111827; padding:15px; border-radius:10px; border: 1px solid rgba(145,163,200,.15);">
+                                <button onclick="speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance({safe_text}); speechSynthesis.speak(u);" style="padding:10px 15px; border-radius:8px; background:#69f0e4; color:#07121a; font-weight:700; cursor:pointer; border:none;">▶ Read Description Aloud</button>
+                                <button onclick="speechSynthesis.cancel();" style="padding:10px 15px; border-radius:8px; background:#1f2937; color:#eaf1ff; cursor:pointer; border:1px solid #526078; margin-left:10px;">■ Stop</button>
+                            </div>
+                            """
+                            components.html(tts_html, height=85)
 
-
+                        with right:
+                            st.markdown("### 📝 Suggested Alt-Text")
+                            st.code(f'<img src="image.jpg" alt="{alt_text}">', language="html")
+                            
+                            st.markdown("### 📄 Detailed Long Description")
+                            st.write(long_desc)
+                            
+                except ImportError:
+                    st.error("Missing libraries! Add `torch` and `transformers` to your requirements.txt.")
+                except Exception as e:
+                    st.error(f"Local Vision AI Error: {e}")
 # --- Reports and demo mode ------------------------------------------------------
 elif page == "Reports & demo":
     hero(
