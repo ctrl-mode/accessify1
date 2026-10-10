@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ipaddress
+import json
 import socket
 import time
 from datetime import datetime
@@ -120,10 +121,10 @@ SEED_TEXTS = [
 SEED_LABELS = [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 FALLBACK_RF_X = [[0, 0, 0], [1, 2, 0], [2, 4, 1], [5, 10, 2], [12, 24, 5], [20, 30, 10]]
 FALLBACK_RF_Y = [0, 0, 0, 1, 1, 1]
-CSV_FILENAME = "Original_full_data (1)_2.csv"
+CSV_FILENAME = "Original_full_data (1).csv"
 
 
-def _build_rf_training_data(csv_bytes: bytes | None) -> tuple[list[list[int]], list[int], str, int]:
+def _build_rf_training_data(csv_bytes: bytes | None) -> tuple[list[list[int]], list[int], str, int, int]:
     """Build training rows grouped by website; use a labelled fallback when needed."""
     dataframe: pd.DataFrame | None = None
     source = "Synthetic baseline examples"
@@ -131,11 +132,11 @@ def _build_rf_training_data(csv_bytes: bytes | None) -> tuple[list[list[int]], l
 
     try:
         if csv_bytes:
-            dataframe = pd.read_csv(BytesIO(csv_bytes))
-            source = "Uploaded CSV"
+            dataframe = pd.read_csv(BytesIO(csv_bytes), low_memory=False)
+            source = f"Uploaded CSV · {len(dataframe):,} records"
         elif local_path.exists():
-            dataframe = pd.read_csv(local_path)
-            source = f"Local file: {CSV_FILENAME}"
+            dataframe = pd.read_csv(local_path, low_memory=False)
+            source = f"Bundled dataset: {CSV_FILENAME} · {len(dataframe):,} records"
     except Exception:
         dataframe = None
         source = "Synthetic baseline examples (CSV could not be read)"
@@ -171,22 +172,22 @@ def _build_rf_training_data(csv_bytes: bytes | None) -> tuple[list[list[int]], l
             y_rows = [1 if s["max_impact"] >= 5 else 0 for s in by_url.values()]
             # RandomForestClassifier needs at least two target classes for risk probability.
             if len(x_rows) >= 4 and len(set(y_rows)) >= 2:
-                return x_rows, y_rows, source, len(by_url)
+                return x_rows, y_rows, source, len(by_url), len(dataframe)
             source += " · fallback used (not enough labelled variety)"
         elif csv_bytes:
-            source = "Synthetic baseline examples (CSV is missing expected columns)"
+            source = f"Synthetic baseline examples (CSV is missing expected columns; {len(dataframe):,} rows were not used)"
 
-    return FALLBACK_RF_X, FALLBACK_RF_Y, source, 0
+    return FALLBACK_RF_X, FALLBACK_RF_Y, source, 0, len(dataframe) if dataframe is not None else 0
 
 
 @st.cache_resource(show_spinner=False)
-def train_models(csv_bytes: bytes | None = None) -> tuple[Any, Any, Any, str, int]:
+def train_models(csv_bytes: bytes | None = None) -> tuple[Any, Any, Any, str, int, int]:
     vectorizer = TfidfVectorizer(ngram_range=(1, 2), min_df=1, sublinear_tf=True)
     x_nlp = vectorizer.fit_transform(SEED_TEXTS)
     nlp_model = LogisticRegression(max_iter=1000, random_state=42).fit(x_nlp, SEED_LABELS)
-    rf_x, rf_y, source, website_count = _build_rf_training_data(csv_bytes)
+    rf_x, rf_y, source, website_count, record_count = _build_rf_training_data(csv_bytes)
     rf_model = RandomForestClassifier(n_estimators=160, random_state=42, class_weight="balanced").fit(rf_x, rf_y)
-    return vectorizer, nlp_model, rf_model, source, website_count
+    return vectorizer, nlp_model, rf_model, source, website_count, record_count
 
 
 def validate_target_url(url: str) -> str:
@@ -287,19 +288,62 @@ def audit_website(
     unlabeled_buttons += sum(1 for button in input_buttons if not _accessible_name(button))
 
     semantic_rows: list[dict[str, Any]] = []
+    nlp_logs: list[str] = []
     for index, image in enumerate(images, start=1):
         alt = str(image.get("alt", ""))
+        # BeautifulSoup's html.parser records a 1-based source line where available.
+        # Some parser/input combinations may not provide it, so keep a clear fallback.
+        source_line = getattr(image, "sourceline", None)
+        line_label = str(source_line) if source_line is not None else "unknown"
+        display_line: int | str = source_line if source_line is not None else "Unavailable"
+
         if not image.has_attr("alt"):
-            semantic_rows.append({"Image #": index, "Alt text": "", "Finding": "Missing alt attribute", "Confidence": "—"})
+            log_entry = f"🚫 Missing alt attribute in {line_label} line"
+            nlp_logs.append(log_entry)
+            semantic_rows.append({
+                "Image #": index,
+                "Source line": display_line,
+                "Alt text": "<missing alt attribute>",
+                "Finding": "Missing alt attribute",
+                "Confidence": "—",
+                "NLP log": log_entry,
+            })
             continue
+
         if not alt.strip():
-            semantic_rows.append({"Image #": index, "Alt text": "", "Finding": "Empty alt — verify decorative", "Confidence": "—"})
+            # json.dumps preserves whitespace visibly and quotes the string as requested,
+            # e.g. an alt value containing one space is rendered as: " ".
+            quoted_alt = json.dumps(alt, ensure_ascii=False)
+            log_entry = f"🚫 Lazy code in {line_label} line: {quoted_alt}"
+            nlp_logs.append(log_entry)
+            semantic_rows.append({
+                "Image #": index,
+                "Source line": display_line,
+                "Alt text": alt,
+                "Finding": "Empty alt — verify decorative",
+                "Confidence": "—",
+                "NLP log": log_entry,
+            })
             continue
+
         transformed = vectorizer.transform([alt])
         prediction = int(nlp_model.predict(transformed)[0])
         confidence = float(nlp_model.predict_proba(transformed)[0][prediction]) * 100
         finding = "Likely descriptive" if prediction == 1 else "Review: possibly generic"
-        semantic_rows.append({"Image #": index, "Alt text": alt, "Finding": finding, "Confidence": f"{confidence:.0f}%"})
+        quoted_alt = json.dumps(alt, ensure_ascii=False)
+        if prediction == 0:
+            log_entry = f"🚫 AI Flagged Junk in {line_label} line: {quoted_alt}"
+            nlp_logs.append(log_entry)
+        else:
+            log_entry = f"✅ Alt text looks descriptive in {line_label} line: {quoted_alt}"
+        semantic_rows.append({
+            "Image #": index,
+            "Source line": display_line,
+            "Alt text": alt,
+            "Finding": finding,
+            "Confidence": f"{confidence:.0f}%",
+            "NLP log": log_entry,
+        })
 
     features = [[missing_alt, empty_links, unlabeled_buttons]]
     predicted_risk = int(rf_model.predict(features)[0])
@@ -331,6 +375,7 @@ def audit_website(
             "Unlabeled buttons": float(rf_model.feature_importances_[2]),
         },
         "semantic_rows": semantic_rows,
+        "nlp_logs": nlp_logs,
         "html_bytes": len(response.content),
         "all_alt_texts": all_alt_texts,
     }
@@ -413,10 +458,18 @@ def show_audit_results(result: dict[str, Any], rf_model: Any) -> None:
             st.dataframe(counts, hide_index=True, use_container_width=True)
             st.caption("Alt-text classifications use a small starter dataset and should be treated as review suggestions, not ground truth.")
     with tabs[2]:
-        semantic = pd.DataFrame(result["semantic_rows"])
-        if semantic.empty:
+        st.markdown("### Source-line NLP log")
+        st.caption("Line numbers refer to the HTML response received by Accessify. A line may be unavailable for some parser/input combinations.")
+        logged_findings = result.get("nlp_logs", [])
+        if logged_findings:
+            st.code("\n".join(logged_findings), language="text")
+        elif not result["semantic_rows"]:
             st.info("No image elements were found on the page.")
         else:
+            st.success("No missing-alt, empty-alt, or prototype NLP-flagged image findings were recorded.")
+
+        semantic = pd.DataFrame(result["semantic_rows"])
+        if not semantic.empty:
             issue_filter = st.selectbox(
                 "Filter image findings",
                 ["All findings", "Issues / review", "Likely descriptive"],
@@ -500,11 +553,11 @@ with st.sidebar:
         help="Expected columns: webURL, Description, initialImpactScore. Uploading this replaces the local CSV for this session.",
         key="ax_training_upload",
     )
-    st.caption("If not uploaded, Accessify looks for its training CSV beside app.py, then uses a small fallback dataset.")
+    st.caption("Accessify automatically loads the bundled Original_full_data (1).csv beside app.py. Upload another CSV only to override it for this session.")
     st.markdown('<div class="ax-mini">ACCESSIFY MK1 · PROTOTYPE</div>', unsafe_allow_html=True)
 
 csv_bytes = uploaded_csv.getvalue() if uploaded_csv is not None else None
-vectorizer, nlp_model, rf_model, model_source, training_websites = train_models(csv_bytes)
+vectorizer, nlp_model, rf_model, model_source, training_websites, training_records = train_models(csv_bytes)
 
 
 # --- Overview -----------------------------------------------------------------
@@ -638,16 +691,17 @@ elif page == "Models & data":
     hero(
         "MODEL DIAGNOSTICS",
         'Know what powers <span class="ax-gradient">the audit.</span>',
-        "Inspect the training-data source, feature signals, and model limitations. Upload your project CSV in the sidebar to train the Random Forest using your dataset.",
+        "Inspect the training-data source, feature signals, and model limitations. Accessify loads the bundled violation dataset automatically; upload another compatible CSV only if you want to override it for this session.",
     )
-    c1, c2, c3 = st.columns(3)
-    c1.metric("NLP training examples", len(SEED_TEXTS))
-    c2.metric("CSV websites used", training_websites if training_websites else "Fallback")
-    c3.metric("Risk model trees", rf_model.n_estimators)
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("NLP starter examples", len(SEED_TEXTS))
+    c2.metric("Dataset records", f"{training_records:,}" if training_records else "Fallback")
+    c3.metric("Unique URLs used", f"{training_websites:,}" if training_websites else "Fallback")
+    c4.metric("Risk model trees", rf_model.n_estimators)
     section("Training source", "RANDOM FOREST")
     with st.container(border=True):
         st.write(model_source)
-        st.caption("Expected CSV columns: webURL, Description, initialImpactScore. The model groups rows by URL and labels websites as higher-impact when the maximum impact score is at least 5.")
+        st.caption("Expected columns: webURL, Description, initialImpactScore. Rows are grouped by URL; URLs whose maximum initialImpactScore is 5 are labelled higher-impact for this experimental model.")
         st.markdown('<div class="ax-callout"><b>Prototype limitation:</b> if the CSV is missing, too small, invalid, or has only one label class, a synthetic baseline dataset is used. This risk estimate is not calibrated and must not be presented as a formal WCAG score.</div>', unsafe_allow_html=True)
     section("Feature importance", "GLOBAL MODEL SIGNALS")
     importances = pd.DataFrame(
