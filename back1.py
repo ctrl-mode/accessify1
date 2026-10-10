@@ -1,14 +1,13 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
-import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 import time
 
 # ==========================================
-# PAGE CONFIGURATION (Makes it look professional)
+# PAGE CONFIGURATION
 # ==========================================
 st.set_page_config(page_title="Accessify Mk1", page_icon="♿", layout="wide")
 
@@ -19,9 +18,9 @@ st.set_page_config(page_title="Accessify Mk1", page_icon="♿", layout="wide")
 def train_models():
     # --- NLP Model (Junk Alt-Text) ---
     nlp_texts = ["...", " ", "image", "image.png", "img", "picture", "logo.jpg", 
-                "a golden retriever catching a red frisbee", 
-                "bar chart showing quarter three sales growth", 
-                "student walking across the university campus"]
+                 "a golden retriever catching a red frisbee", 
+                 "bar chart showing quarter three sales growth", 
+                 "student walking across the university campus"]
     nlp_labels = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1] # 0 = Junk, 1 = Good
 
     vectorizer = TfidfVectorizer()
@@ -84,35 +83,4 @@ if st.button("Run Full AI Audit", type="primary"):
             # --- DISPLAY EXPLAINABLE AI (XAI) ---
             st.markdown("### 🧠 Explainable AI (XAI) Weights")
             st.caption("Which structural errors are driving the risk score?")
-            importances = rf_model.feature_importances_
-            feature_names = ["Missing Alts", "Empty Links", "Unlabeled Buttons"]
-            chart_data = pd.DataFrame(importances, index=feature_names, columns=["Impact Weight"])
-            st.bar_chart(chart_data)
-
-            # --- DISPLAY NLP TEXT ANALYSIS ---
-            st.markdown("### 📝 NLP 'Junk Alt-Text' Detection")
-            
-            if not all_alt_texts:
-                st.info("No alt-text attributes found to analyze.")
-            else:
-                X_live = vectorizer.transform(all_alt_texts)
-                predictions = nlp_model.predict(X_live)
-
-                junk_found = False
-                for text, prediction in zip(all_alt_texts, predictions):
-                    if text.strip() == "":
-                        st.error('🚫 **Detected Empty String:** " " (Junk)')
-                        junk_found = True
-                    elif prediction == 0:
-                        st.error(f'🚫 **Flagged by AI:** "{text}" (Junk)')
-                        junk_found = True
-                
-                if not junk_found:
-                    st.success("✅ All provided alt-texts passed the NLP quality check.")
-                    with st.expander("View Passed Alt-Texts"):
-                        for text in all_alt_texts:
-                            if text.strip() != "":
-                                st.write(f"- {text}")
-
-        except Exception as e:
-            st.error(f"Failed to scan website. Please check the URL or try another site. Error: {e}")
+            import
