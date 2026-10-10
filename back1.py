@@ -857,17 +857,6 @@ def evaluate_dataset_model(csv_bytes: bytes | None = None) -> dict[str, Any]:
     }
 
 
-def create_tts_audio(text_to_read: str, api_key: str, voice: str = "coral") -> bytes:
-    from openai import OpenAI
-    client = OpenAI(api_key=api_key.strip())
-    speech = client.audio.speech.create(model="gpt-4o-mini-tts", voice=voice, input=text_to_read[:4000], instructions="Read clearly at a steady pace for an educational accessibility narration.")
-    if hasattr(speech, "content"):
-        return bytes(speech.content)
-    if hasattr(speech, "read"):
-        return bytes(speech.read())
-    raise RuntimeError("The speech provider returned no audio bytes.")
-
-
 def build_report_html(result: dict[str, Any]) -> str:
     findings = result.get("audit_findings", [])
     body_rows = []
@@ -951,7 +940,7 @@ with st.sidebar:
     st.markdown('<div class="ax-eyebrow">WORKSPACE</div>', unsafe_allow_html=True)
     page = st.radio(
         "Navigation",
-        ["Overview", "Website audit", "Models & data", "Remediation assistant", "Image-to-context", "Reports & demo", "Run history", "Settings"],
+        ["Overview", "Website audit", "Models & data", "Remediation assistant", "Reports & demo", "Run history", "Settings"],
         label_visibility="collapsed",
         key="ax_navigation",
     )
@@ -1251,79 +1240,6 @@ elif page == "Remediation assistant":
                 st.download_button("Export checklist", "\n".join(f"- [ ] {entry}" for entry in checklist).encode("utf-8"), "accessify_remediation_checklist.md", "text/markdown")
 
 
-# --- Image-to-context accessibility engine (Local Vision AI / Zero API Keys) ---
-elif page == "Image-to-context":
-    hero(
-        "IMAGE-TO-CONTEXT ACCESSIBILITY",
-        'Let the image explain <span class="ax-gradient">itself.</span>',
-        "Upload a graph, diagram, screenshot, or photo. Accessify uses an open-source Vision AI running locally on your server to describe what is visible—generating contextual alt-text without requiring any external API keys.",
-    )
-    st.markdown('<div class="ax-callout"><b>Privacy & provider setup:</b> Analysis uses a local BLIP neural network. Images are never sent to third-party providers or external endpoints.</div>', unsafe_allow_html=True)
-
-    @st.cache_resource(show_spinner=False)
-    def get_local_vision_model():
-        from transformers import pipeline
-        return pipeline("image-to-text", model="Salesforce/blip-image-captioning-base")
-
-    with st.container(border=True):
-        uploaded_image = st.file_uploader(
-            "Upload an image to understand",
-            type=["png", "jpg", "jpeg", "webp"],
-            key="ax_image_upload",
-        )
-        
-        if st.button("Analyse image with Local AI →", type="primary", use_container_width=True):
-            if not uploaded_image:
-                st.error("Please upload an image first.")
-            else:
-                try:
-                    import json
-                    from io import BytesIO
-                    from PIL import Image
-                    import streamlit.components.v1 as components
-                    
-                    with st.spinner("Loading local neural network (this may take a minute on first run as weights download)..."):
-                        captioner = get_local_vision_model()
-                        
-                    with st.spinner("Neural network is analysing the image context..."):
-                        image = Image.open(BytesIO(uploaded_image.getvalue())).convert("RGB")
-                        
-                        # Generate the AI caption locally
-                        result = captioner(image, max_new_tokens=50)[0]["generated_text"]
-                        
-                        # Capitalise and format nicely
-                        alt_text = result.capitalize() + "."
-                        long_desc = f"An AI-generated description of the uploaded visual content: {alt_text}"
-                        
-                        st.success("Local Vision AI Analysis Complete!")
-                        
-                        left, right = st.columns([1, 1], gap="large")
-                        with left:
-                            st.image(uploaded_image, caption="Uploaded Source Image", use_container_width=True)
-                            
-                            st.markdown("### 🔊 Screen-Reader Narration")
-                            st.caption("Testing browser-native text-to-speech integration.")
-                            
-                            safe_text = json.dumps(f"Image description: {alt_text}", ensure_ascii=False)
-                            tts_html = f"""
-                            <div style="background:#111827; padding:15px; border-radius:10px; border: 1px solid rgba(145,163,200,.15);">
-                                <button onclick="speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance({safe_text}); speechSynthesis.speak(u);" style="padding:10px 15px; border-radius:8px; background:#69f0e4; color:#07121a; font-weight:700; cursor:pointer; border:none;">▶ Read Description Aloud</button>
-                                <button onclick="speechSynthesis.cancel();" style="padding:10px 15px; border-radius:8px; background:#1f2937; color:#eaf1ff; cursor:pointer; border:1px solid #526078; margin-left:10px;">■ Stop</button>
-                            </div>
-                            """
-                            components.html(tts_html, height=85)
-
-                        with right:
-                            st.markdown("### 📝 Suggested Alt-Text")
-                            st.code(f'<img src="image.jpg" alt="{alt_text}">', language="html")
-                            
-                            st.markdown("### 📄 Detailed Long Description")
-                            st.write(long_desc)
-                            
-                except ImportError:
-                    st.error("Missing libraries! Add `torch` and `transformers` to your requirements.txt.")
-                except Exception as e:
-                    st.error(f"Local Vision AI Error: {e}")
 # --- Reports and demo mode ------------------------------------------------------
 elif page == "Reports & demo":
     hero(
@@ -1405,7 +1321,7 @@ elif page == "Settings":
     hero(
         "SYSTEM PREFERENCES",
         'Tune your <span class="ax-gradient">audit workspace.</span>',
-        "Set scan defaults and review API-provider configuration for optional image-to-context analysis and narration.",
+        "Set scan defaults.",
     )
     with st.form("ax_settings_form"):
         new_timeout = st.slider("Default request timeout (seconds)", 5, 30, int(st.session_state.ax_settings["timeout"]))
@@ -1420,5 +1336,4 @@ elif page == "Settings":
         st.markdown("**JavaScript:** This version inspects the HTML response and does not run client-side JavaScript.")
         st.markdown("**Accessibility:** Counts are automated heuristics. They do not replace keyboard testing, screen-reader review, or a full WCAG audit.")
         st.markdown("**Storage:** Results and uploaded CSV data are held in the active Streamlit session; no database is configured.")
-        st.markdown("**Image-to-context:** Set `OPENAI_API_KEY` in the environment or enter it in Image-to-context for the current session. Image analysis and optional narration use external APIs and may incur charges. Never commit keys to Git.")
 
