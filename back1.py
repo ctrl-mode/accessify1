@@ -18,6 +18,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
 from bs4 import BeautifulSoup
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import GroupShuffleSplit
@@ -40,11 +41,11 @@ st.markdown(
     r"""
     <style>
       @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
-      :root { --ax-bg:#080b12; --ax-line:rgba(150,170,205,.14); --ax-text:#eef3ff; --ax-muted:#8f9bb4; --ax-cyan:#69f0e4; --ax-blue:#7c8cff; }
+      :root { --ax-bg:#101827; --ax-line:rgba(160,180,220,.19); --ax-text:#f1f5ff; --ax-muted:#a6b3cb; --ax-cyan:#69f0e4; --ax-blue:#7c8cff; }
       html, body, [class*="css"] { font-family:'Manrope',sans-serif; }
-      .stApp { background:radial-gradient(ellipse at 10% 0%,rgba(54,78,164,.22),transparent 36%),radial-gradient(ellipse at 92% 14%,rgba(25,174,164,.11),transparent 28%),#080b12; color:var(--ax-text); }
-      [data-testid="stHeader"] { background:rgba(8,11,18,.72); }
-      [data-testid="stSidebar"] { background:linear-gradient(180deg,rgba(15,20,33,.98),rgba(9,12,21,.98)); border-right:1px solid var(--ax-line); }
+      .stApp { background:radial-gradient(ellipse at 10% 0%,rgba(54,90,190,.25),transparent 36%),radial-gradient(ellipse at 92% 14%,rgba(25,174,164,.14),transparent 28%),#101827; color:var(--ax-text); }
+      [data-testid="stHeader"] { background:rgba(16,24,39,.78); }
+      [data-testid="stSidebar"] { background:linear-gradient(180deg,rgba(25,34,54,.99),rgba(15,22,38,.99)); border-right:1px solid var(--ax-line); }
       [data-testid="stSidebar"] > div { padding-top:1.1rem; }
       .block-container { padding-top:1.25rem; padding-bottom:3rem; max-width:none !important; width:100% !important; padding-left:clamp(1rem,2.5vw,3rem); padding-right:clamp(1rem,2.5vw,3rem); }
       h1,h2,h3,h4 { letter-spacing:-.035em; } h1 { font-weight:850 !important; } h2,h3 { font-weight:780 !important; }
@@ -159,77 +160,117 @@ st.markdown(
       .stButton>button,.stDownloadButton>button,button[kind="primary"], [data-testid="stFormSubmitButton"] button { transform:translateZ(0); transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s ease,border-color .2s ease,filter .2s ease!important; }
       .stButton>button:hover,.stDownloadButton>button:hover,[data-testid="stFormSubmitButton"] button:hover { transform:translateY(-4px) scale(1.025)!important; box-shadow:0 12px 30px rgba(75,137,255,.18),0 0 0 1px rgba(105,160,255,.18)!important; filter:brightness(1.06); }
       .stButton>button:active,.stDownloadButton>button:active,[data-testid="stFormSubmitButton"] button:active { transform:translateY(0) scale(.975)!important; }
+      /* Slow color cycling on every topic/section heading; colors stay in a high-contrast range. */
+      @keyframes axTopicHue {
+        0%,100% { color:#e9faff; text-shadow:0 0 13px rgba(105,240,228,.14); }
+        34% { color:#b8c7ff; text-shadow:0 0 17px rgba(124,140,255,.20); }
+        68% { color:#e2c2ff; text-shadow:0 0 16px rgba(202,143,255,.18); }
+      }
+      .ax-section-title, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4 { animation:axTopicHue 8.5s ease-in-out infinite; }
+      .ax-title { animation:axTopicHue 8.5s ease-in-out infinite; }
+      /* Soft streetlamp-style focus: lift and glow any substantial widget/card under the pointer. */
+      [data-testid="stMetric"], [data-testid="stDataFrame"], [data-testid="stPlotlyChart"],
+      [data-testid="stSelectbox"], [data-testid="stTextInput"], [data-testid="stTextArea"],
+      [data-testid="stSlider"], [data-testid="stFileUploader"], [data-testid="stExpander"],
+      [data-testid="stTabs"], [data-testid="stRadio"], [data-testid="stCheckbox"],
+      [data-testid="stMultiSelect"], [data-testid="stNumberInput"], [data-testid="stDateInput"],
+      [data-testid="stProgress"], [data-testid="stForm"] {
+        border-radius:13px; transition:transform .22s cubic-bezier(.2,.8,.2,1), box-shadow .22s ease, border-color .22s ease, filter .22s ease;
+      }
+      [data-testid="stMetric"]:hover, [data-testid="stDataFrame"]:hover, [data-testid="stPlotlyChart"]:hover,
+      [data-testid="stSelectbox"]:hover, [data-testid="stTextInput"]:hover, [data-testid="stTextArea"]:hover,
+      [data-testid="stSlider"]:hover, [data-testid="stFileUploader"]:hover, [data-testid="stExpander"]:hover,
+      [data-testid="stTabs"]:hover, [data-testid="stRadio"]:hover, [data-testid="stCheckbox"]:hover,
+      [data-testid="stMultiSelect"]:hover, [data-testid="stNumberInput"]:hover, [data-testid="stDateInput"]:hover,
+      [data-testid="stProgress"]:hover, [data-testid="stForm"]:hover {
+        transform:translateY(-2px); box-shadow:0 12px 28px rgba(29,87,194,.13),0 0 0 1px rgba(102,159,255,.09);
+      }
+      [data-testid="stMetric"], [data-testid="stDataFrame"], [data-testid="stPlotlyChart"] { box-shadow:0 10px 28px rgba(0,0,0,.18); }
+      input, textarea, [data-baseweb="select"]>div { color:#f2f6ff!important; }
+      [data-testid="stCaptionContainer"] { color:#a4b2cc; }
+      .ax-footer { margin-top:25px; }
+      .ax-explain { margin-top:20px; padding:20px 22px; border:1px solid rgba(114,150,220,.22); border-radius:18px; background:radial-gradient(circle at 92% 0%,rgba(91,151,255,.10),transparent 36%),linear-gradient(140deg,rgba(27,39,63,.90),rgba(18,27,45,.94)); box-shadow:0 14px 36px rgba(0,0,0,.15); }
+      .ax-explain-title { font:11px 'DM Mono',monospace; text-transform:uppercase; letter-spacing:1.7px; color:#a6bdff; margin-bottom:9px; }
+      .ax-explain-copy { color:#d3def2; font-size:13px; line-height:1.8; margin:0; }
       @media (prefers-reduced-motion:reduce) { body:before,body.ax-click-glow:after { display:none!important; } *,*::before,*::after { animation-duration:.01ms!important; animation-iteration-count:1!important; scroll-behavior:auto!important; transition-duration:.01ms!important; } }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# Lightweight pointer effects: a dim blue ambient light, click ripple, and letters
-# that shift through the spectrum when the pointer is moved or dragged across them.
-st.markdown(r"""
+# Pointer effects must run in a component iframe and attach to the parent Streamlit document;
+# scripts placed directly in st.markdown(..., unsafe_allow_html=True) are ignored by Streamlit.
+components.html(r"""
 <script>
 (() => {
-  if (window.__accessifyPointerFX) return;
-  window.__accessifyPointerFX = true;
-  const root = document.documentElement;
-  let hue = 185;
-  let lastClick = 0;
-  const setPointer = (x, y) => {
-    root.style.setProperty('--ax-mx', x + 'px');
-    root.style.setProperty('--ax-my', y + 'px');
-  };
-  const paintLetters = (x, y) => {
-    document.querySelectorAll('.ax-rainbow-word').forEach(word => {
-      if (!word.dataset.axWrapped) {
-        const text = word.textContent || '';
-        word.textContent = '';
-        [...text].forEach((char, i) => {
-          const span = document.createElement('span');
-          span.className = 'ax-rainbow-letter';
-          span.textContent = char;
-          span.dataset.axIndex = i;
-          if (char === ' ') span.style.width = '.28em';
-          word.appendChild(span);
-        });
-        word.dataset.axWrapped = '1';
-      }
-      word.querySelectorAll('.ax-rainbow-letter').forEach((letter, i) => {
-        const r = letter.getBoundingClientRect();
-        const near = x >= r.left - 15 && x <= r.right + 15 && y >= r.top - 22 && y <= r.bottom + 22;
-        if (near) {
-          hue = (hue + 17 + i * 2) % 360;
-          letter.style.setProperty('--ax-hue', hue);
-          letter.classList.add('ax-lit');
-        } else if (Math.abs(x - (r.left + r.width / 2)) > 95 || Math.abs(y - (r.top + r.height / 2)) > 65) {
-          letter.classList.remove('ax-lit');
+  try {
+    const host = window.parent;
+    const doc = host.document;
+    const root = doc.documentElement;
+    if (root.dataset.axPointerFxInstalled === '1') return;
+    root.dataset.axPointerFxInstalled = '1';
+    let hue = 185;
+    let lastClick = 0;
+    const setPointer = (x, y) => {
+      root.style.setProperty('--ax-mx', x + 'px');
+      root.style.setProperty('--ax-my', y + 'px');
+    };
+    const paintLetters = (x, y) => {
+      doc.querySelectorAll('.ax-rainbow-word').forEach(word => {
+        if (!word.dataset.axWrapped) {
+          const raw = word.textContent || '';
+          word.textContent = '';
+          [...raw].forEach((char, i) => {
+            const span = doc.createElement('span');
+            span.className = 'ax-rainbow-letter';
+            span.textContent = char;
+            span.dataset.axIndex = i;
+            if (char === ' ') span.style.width = '.28em';
+            word.appendChild(span);
+          });
+          word.dataset.axWrapped = '1';
         }
+        word.querySelectorAll('.ax-rainbow-letter').forEach((letter, i) => {
+          const r = letter.getBoundingClientRect();
+          const near = x >= r.left - 15 && x <= r.right + 15 && y >= r.top - 22 && y <= r.bottom + 22;
+          if (near) {
+            hue = (hue + 17 + i * 2) % 360;
+            letter.style.setProperty('--ax-hue', hue);
+            letter.classList.add('ax-lit');
+          } else if (Math.abs(x - (r.left + r.width / 2)) > 95 || Math.abs(y - (r.top + r.height / 2)) > 65) {
+            letter.classList.remove('ax-lit');
+          }
+        });
+      });
+    };
+    doc.addEventListener('pointermove', e => {
+      setPointer(e.clientX, e.clientY);
+      paintLetters(e.clientX, e.clientY);
+    }, {passive:true});
+    doc.addEventListener('pointerdown', e => {
+      root.style.setProperty('--ax-cx', e.clientX + 'px');
+      root.style.setProperty('--ax-cy', e.clientY + 'px');
+      doc.body.classList.remove('ax-click-glow');
+      void doc.body.offsetWidth;
+      doc.body.classList.add('ax-click-glow');
+      lastClick = Date.now();
+      host.setTimeout(() => {
+        if (Date.now() - lastClick >= 700) doc.body.classList.remove('ax-click-glow');
+      }, 760);
+    }, {passive:true});
+    const observer = new host.MutationObserver(() => {
+      doc.querySelectorAll('.ax-rainbow-word:not([data-ax-watching])').forEach(el => {
+        el.dataset.axWatching = '1';
+        paintLetters(-1000, -1000);
       });
     });
-  };
-  document.addEventListener('pointermove', e => {
-    setPointer(e.clientX, e.clientY);
-    paintLetters(e.clientX, e.clientY);
-  }, {passive:true});
-  document.addEventListener('pointerdown', e => {
-    root.style.setProperty('--ax-cx', e.clientX + 'px');
-    root.style.setProperty('--ax-cy', e.clientY + 'px');
-    document.body.classList.remove('ax-click-glow');
-    void document.body.offsetWidth;
-    document.body.classList.add('ax-click-glow');
-    lastClick = Date.now();
-    setTimeout(() => { if (Date.now() - lastClick >= 700) document.body.classList.remove('ax-click-glow'); }, 760);
-  }, {passive:true});
-  const observer = new MutationObserver(() => {
-    document.querySelectorAll('.ax-rainbow-word:not([data-ax-watching])').forEach(el => {
-      el.dataset.axWatching = '1';
-      paintLetters(-1000, -1000);
-    });
-  });
-  observer.observe(document.body, {childList:true, subtree:true});
+    if (doc.body) observer.observe(doc.body, {childList:true, subtree:true});
+  } catch (err) {
+    // The rest of the UI stays usable if a deployment restricts same-origin components.
+  }
 })();
 </script>
-""", unsafe_allow_html=True)
+""", height=0, scrolling=False)
 
 
 # --- Session state -------------------------------------------------------------
@@ -399,12 +440,21 @@ def _accessible_name(element: Any) -> str:
     return " ".join(piece for piece in pieces if piece).strip()
 
 
-def _risk_label(probability: float) -> str:
-    if probability >= 70:
-        return "HIGHER REVIEW PRIORITY"
-    if probability >= 40:
-        return "MODERATE REVIEW PRIORITY"
-    return "LOWER REVIEW PRIORITY"
+def _risk_label(score: float) -> str:
+    """Label a heuristic issue-density score; this is not a probability or WCAG score."""
+    if score >= 20:
+        return "HIGH ISSUE DENSITY"
+    if score >= 7:
+        return "MODERATE ISSUE DENSITY"
+    return "LOWER ISSUE DENSITY"
+
+
+def _issue_density_score(findings: list[dict[str, Any]], audited_items: int) -> float:
+    """Weighted findings per audited page element, capped at 100 for readability."""
+    weights = {"High": 3.0, "Medium": 2.0, "Review": 1.0}
+    issue_points = sum(weights.get(str(item.get("Severity", "Review")), 1.0) for item in findings)
+    denominator = 3.0 * max(10, int(audited_items))
+    return round(min(100.0, (issue_points / denominator) * 100.0), 1)
 
 
 def _element_line(element: Any) -> int | str:
@@ -452,6 +502,26 @@ def _fix_for_issue(issue_key: str, element: Any = None) -> str:
     return "Review the element's accessible name, semantics, and purpose in context. Confirm with keyboard and screen-reader testing."
 
 
+def _looks_like_placeholder_alt(alt: str) -> bool:
+    """Identify clear low-information placeholders without judging image context."""
+    value = re.sub(r"\s+", " ", alt.strip().casefold())
+    value = re.sub(r"[_-]+", " ", value).strip()
+    obvious_phrases = {
+        "image", "photo", "picture", "graphic", "icon", "logo", "img",
+        "image 1", "image 2", "photo 1", "picture 1", "default image",
+        "image placeholder", "placeholder", "untitled", "file", "image file",
+    }
+    if value in obvious_phrases:
+        return True
+    compact = alt.strip().casefold().replace(" ", "")
+    if re.fullmatch(r"(?:img|dsc|dscn|pxl|image|photo)[_-]?\d+(?:\.[a-z0-9]{2,5})?", compact):
+        return True
+    # A bare image filename does not communicate its meaning to a screen-reader user.
+    if re.fullmatch(r"[a-z0-9_-]+\.(?:png|jpe?g|gif|webp|svg|bmp|avif)", compact):
+        return True
+    return False
+
+
 def inspect_accessibility(soup: BeautifulSoup, vectorizer: Any, nlp_model: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
     """Run deterministic HTML checks and add line-level image text review signals."""
     findings: list[dict[str, Any]] = []
@@ -478,28 +548,37 @@ def inspect_accessibility(soup: BeautifulSoup, vectorizer: Any, nlp_model: Any) 
         if not image.has_attr("alt"):
             log_entry = f"🚫 Missing alt attribute in {line_label} line"
             nlp_logs.append(log_entry)
-            semantic_rows.append({"Image #": index, "Source line": line, "Alt text": "<missing alt attribute>", "Finding": "Missing alt attribute", "Confidence": "—", "NLP log": log_entry})
+            semantic_rows.append({"Image #": index, "Source line": line, "Alt text": "<missing alt attribute>", "Finding": "Missing alt attribute", "Signal": "Not scored", "NLP log": log_entry})
             add("missing_alt", "Image missing alt attribute", "High", image, "Informative images need an appropriate text alternative. Decorative images may use alt=\"\".", "Images")
             continue
         if not alt.strip():
             log_entry = f"🚫 Lazy code in {line_label} line: {json.dumps(alt, ensure_ascii=False)}"
             nlp_logs.append(log_entry)
-            semantic_rows.append({"Image #": index, "Source line": line, "Alt text": alt, "Finding": "Empty alt — verify decorative", "Confidence": "—", "NLP log": log_entry})
+            semantic_rows.append({"Image #": index, "Source line": line, "Alt text": alt, "Finding": "Empty alt — verify decorative", "Signal": "Not scored", "NLP log": log_entry})
             add("empty_alt", "Empty alt text — review purpose", "Review", image, "An empty alt attribute is correct for a decorative image, but not usually for an informative image.", "Images")
             continue
         transformed = vectorizer.transform([alt])
         prediction = int(nlp_model.predict(transformed)[0])
-        confidence = float(nlp_model.predict_proba(transformed)[0][prediction]) * 100
+        # The tiny seed classifier is only advisory. A model vote by itself does not
+        # become a formal audit finding; require an obvious low-information pattern.
         quoted = json.dumps(alt, ensure_ascii=False)
-        if prediction == 0:
-            log_entry = f"🚫 AI Flagged Junk in {line_label} line: {quoted}"
+        if _looks_like_placeholder_alt(alt):
+            log_entry = f"⚠️ Rule-based placeholder review in {line_label} line: {quoted}"
             nlp_logs.append(log_entry)
-            finding = "Review: possibly generic"
-            add("generic_alt", "Alt text may be generic", "Medium", image, f"The starter NLP model flagged {quoted}. Confirm whether it conveys the image's purpose in context.", "Images / NLP review")
+            finding = "Review: likely generic placeholder"
+            signal = "Rule-based placeholder match"
+            add("generic_alt", "Alt text may be generic", "Medium", image, f"The alt text {quoted} matches a common placeholder or filename pattern. Confirm whether it describes this image in context.", "Images / review")
+        elif prediction == 0:
+            log_entry = f"ℹ️ Model-only review hint in {line_label} line: {quoted} (not counted as a formal finding)"
+            nlp_logs.append(log_entry)
+            finding = "Manual review suggested (unverified model hint)"
+            signal = "Uncalibrated model hint"
         else:
-            log_entry = f"✅ Alt text looks descriptive in {line_label} line: {quoted}"
-            finding = "Likely descriptive"
-        semantic_rows.append({"Image #": index, "Source line": line, "Alt text": alt, "Finding": finding, "Confidence": f"{confidence:.0f}%", "NLP log": log_entry})
+            log_entry = f"ℹ️ No obvious placeholder detected in {line_label} line: {quoted}; contextual review is still needed."
+            nlp_logs.append(log_entry)
+            finding = "No obvious placeholder detected"
+            signal = "No placeholder rule matched"
+        semantic_rows.append({"Image #": index, "Source line": line, "Alt text": alt, "Finding": finding, "Signal": signal, "NLP log": log_entry})
 
     # Links without a usable accessible name, and vague link text that merits review.
     vague_link_names = {"click here", "here", "read more", "more", "learn more", "click", "link"}
@@ -587,10 +666,27 @@ def analyze_html_content(
     empty_links = sum(1 for link in links if not _accessible_name(link))
     buttons = list(soup.find_all("button")) + list(soup.find_all("input", attrs={"type": ["button", "submit", "reset", "image"]}))
     unlabeled_buttons = sum(1 for button in buttons if not _accessible_name(button))
-    features = [[missing_alt, empty_links, unlabeled_buttons]]
-    predicted_risk = int(rf_model.predict(features)[0])
-    classes = list(rf_model.classes_)
-    risk_probability = 100 * float(rf_model.predict_proba(features)[0][classes.index(1)]) if 1 in classes else 0.0
+    # The Random Forest is trained on limited, URL-aggregated dataset labels and often
+    # saturates outside the training range (for example, large content-heavy pages).
+    # For live pages, show a transparent severity-weighted finding density instead of
+    # presenting the uncalibrated model probability as if it were a reliable probability.
+    headings = soup.find_all(re.compile(r"^h[1-6]$"))
+    frames = soup.find_all(["iframe", "frame"])
+    summaries = soup.find_all("summary")
+    labelable_controls = []
+    for control in soup.find_all(["input", "select", "textarea"]):
+        typ = str(control.get("type", "text")).lower() if control.name == "input" else ""
+        if typ not in {"hidden", "submit", "reset", "button", "image"}:
+            labelable_controls.append(control)
+    ids: dict[str, list[Any]] = {}
+    for node in soup.find_all(attrs={"id": True}):
+        ids.setdefault(str(node.get("id")), []).append(node)
+    duplicate_id_nodes = sum(len(nodes) for ident, nodes in ids.items() if ident and len(nodes) > 1)
+    audited_items = (
+        len(images) + len(links) + len(buttons) + len(labelable_controls) + len(headings)
+        + len(frames) + len(summaries) + duplicate_id_nodes + 4
+    )
+    issue_density_score = _issue_density_score(findings, audited_items)
     feature_importances = {
         "Missing alt attributes": float(rf_model.feature_importances_[0]),
         "Links without accessible names": float(rf_model.feature_importances_[1]),
@@ -610,9 +706,8 @@ def analyze_html_content(
         "empty_links": int(empty_links),
         "buttons_total": len(buttons),
         "unlabeled_buttons": int(unlabeled_buttons),
-        "risk_prediction": predicted_risk,
-        "risk_probability": round(risk_probability, 1),
-        "risk_label": _risk_label(risk_probability),
+        "issue_density_score": issue_density_score,
+        "risk_label": _risk_label(issue_density_score),
         "feature_importances": feature_importances,
         "semantic_rows": semantic_rows,
         "nlp_logs": nlp_logs,
@@ -655,7 +750,7 @@ def add_history(result: dict[str, Any]) -> None:
             "Missing alt": result["missing_alt"],
             "Empty links": result["empty_links"],
             "Unlabeled buttons": result["unlabeled_buttons"],
-            "Risk estimate": result["risk_probability"],
+            "Issue density score (%)": result.get("issue_density_score", 0.0),
             "Duration (s)": result["elapsed_seconds"],
         },
     )
@@ -803,10 +898,10 @@ def show_audit_results(result: dict[str, Any], rf_model: Any) -> None:
         risk_left, risk_right = st.columns([1, 1.3], gap="large")
         with risk_left:
             with st.container(border=True):
-                st.markdown('<div class="ax-eyebrow">EXPERIMENTAL MODEL ESTIMATE</div>', unsafe_allow_html=True)
-                st.markdown(f"### {result['risk_probability']:.1f}% risk probability")
-                st.progress(min(100, max(0, int(round(result["risk_probability"])))), text=result["risk_label"])
-                st.caption("This is a prototype Random Forest estimate, not a WCAG compliance score or certification.")
+                st.markdown('<div class="ax-eyebrow">RULE-BASED REVIEW SIGNAL</div>', unsafe_allow_html=True)
+                st.markdown(f"### {result.get('issue_density_score', 0.0):.1f}% issue-density score")
+                st.progress(min(100, max(0, int(round(result.get("issue_density_score", result.get("risk_probability", 0.0)))))), text=result.get("risk_label", "REVIEW SIGNAL"))
+                st.caption("Weighted High / Medium / Review findings divided by the number of inspected page elements. This is an issue-density heuristic—not a probability, accessibility grade, or WCAG certification.")
         with risk_right:
             with st.container(border=True):
                 st.markdown("**Target page**")
@@ -843,29 +938,29 @@ def show_audit_results(result: dict[str, Any], rf_model: Any) -> None:
         else:
             counts = semantic["Finding"].value_counts().rename_axis("Finding").reset_index(name="Images")
             st.dataframe(counts, hide_index=True, use_container_width=True)
-            st.caption("Alt-text classifications use a small starter dataset and should be treated as review suggestions, not ground truth.")
+            st.caption("Alt text is checked with a small experimental starter model. Its probability is intentionally not shown because it is not calibrated; verify wording against the image and page context.")
     with tabs[2]:
         st.markdown("### Source-line NLP log")
-        st.caption("Line numbers refer to the HTML response received by Accessify. A line may be unavailable for some parser/input combinations.")
+        st.caption("Line numbers refer to the HTML response received by Accessify. A line may be unavailable for some parser/input combinations. The NLP classifier is experimental; model-only suggestions are not counted as formal findings.")
         logged_findings = result.get("nlp_logs", [])
         if logged_findings:
             st.code("\n".join(logged_findings), language="text")
         elif not result["semantic_rows"]:
             st.info("No image elements were found on the page.")
         else:
-            st.success("No missing-alt, empty-alt, or prototype NLP-flagged image findings were recorded.")
+            st.success("No missing-alt, empty-alt, or obvious placeholder findings were recorded. This does not prove every image description is appropriate.")
 
         semantic = pd.DataFrame(result["semantic_rows"])
         if not semantic.empty:
             issue_filter = st.selectbox(
                 "Filter image findings",
-                ["All findings", "Issues / review", "Likely descriptive"],
+                ["All findings", "Issues / review", "No obvious placeholder detected"],
                 key=f"semantic_filter_{result['timestamp']}",
             )
             if issue_filter == "Issues / review":
-                semantic = semantic[semantic["Finding"] != "Likely descriptive"]
-            elif issue_filter == "Likely descriptive":
-                semantic = semantic[semantic["Finding"] == "Likely descriptive"]
+                semantic = semantic[semantic["Finding"] != "No obvious placeholder detected"]
+            elif issue_filter == "No obvious placeholder detected":
+                semantic = semantic[semantic["Finding"] == "No obvious placeholder detected"]
             st.dataframe(semantic, hide_index=True, use_container_width=True, height=360)
             csv_bytes = semantic.to_csv(index=False).encode("utf-8")
             st.download_button("Download semantic findings CSV", csv_bytes, "accessify_semantic_findings.csv", "text/csv")
@@ -1151,11 +1246,13 @@ if page == "Overview":
             section("Session insights", "INTERACTIVE SCAN TREND")
             with st.container(border=True):
                 trend_df = pd.DataFrame(st.session_state.ax_runs).copy().head(12).iloc[::-1]
+                if "Issue density score (%)" not in trend_df.columns:
+                    trend_df["Issue density score (%)"] = pd.to_numeric(trend_df.get("Risk estimate", 0), errors="coerce")
                 trend_options = {
                     "Missing alt attributes": "Missing alt",
                     "Links without accessible names": "Empty links",
                     "Unlabeled controls": "Unlabeled buttons",
-                    "Experimental risk estimate (%)": "Risk estimate",
+                    "Issue density score (%)": "Issue density score (%)",
                 }
                 chosen_trend = st.selectbox("Choose a metric to compare", list(trend_options.keys()), key="ax_overview_trend_metric")
                 trend_field = trend_options[chosen_trend]
@@ -1188,7 +1285,7 @@ if page == "Overview":
                 r2.metric("Missing alt", last["missing_alt"])
                 r3.metric("Unnamed links", last["empty_links"])
                 r4.metric("Unlabeled controls", last["unlabeled_buttons"])
-                st.caption("The model risk estimate is experimental; it is not a WCAG compliance score or certification.")
+                st.caption("Issue density is a severity-weighted heuristic, not a probability or WCAG compliance score. Use the element-level findings as the actionable evidence.")
             show_audit_results(last, rf_model)
 
         st.markdown(
@@ -1302,7 +1399,7 @@ elif page == "Models & data":
             st.dataframe(preview_df, hide_index=True, use_container_width=True, height=360)
             st.download_button("Download filtered/source dataset", df.to_csv(index=False).encode("utf-8"), "accessify_dataset_export.csv", "text/csv")
 
-    section("Live audit model signals", "GLOBAL RANDOM FOREST FEATURE IMPORTANCE")
+    section("Model signals", "LEGACY MODEL FEATURE IMPORTANCE")
     feature_importances = {
         "Missing alt attributes": float(rf_model.feature_importances_[0]),
         "Links without accessible names": float(rf_model.feature_importances_[1]),
@@ -1313,7 +1410,7 @@ elif page == "Models & data":
     with st.container(border=True):
         st.markdown("**Live-page risk estimator:** Random Forest over three structural counts. The model is trained on URL-level aggregates derived from violation descriptions, and its prediction is experimental.")
         st.markdown("**Text model:** TF-IDF + Logistic Regression on dataset descriptions. It predicts a threshold derived from `initialImpactScore`; this is not an alt-text quality classifier.")
-        st.markdown("**Alt-text NLP signal:** the starter classifier uses hand-authored examples and is experimental; its predictions are suggestions for review, not validated accessibility judgments.")
+        st.markdown("**Alt-text NLP signal:** the starter classifier uses hand-authored examples and is experimental. Clear placeholder patterns become formal findings; model-only suggestions are shown as unverified hints. No uncalibrated confidence percentage is displayed.")
 
 
 # --- Remediation assistant ------------------------------------------------------
@@ -1505,3 +1602,20 @@ elif page == "Settings":
         st.markdown("**Accessibility:** Counts are automated heuristics. They do not replace keyboard testing, screen-reader review, or a full WCAG audit.")
         st.markdown("**Storage:** Results and uploaded CSV data are held in the active Streamlit session; no database is configured.")
 
+# --- End-of-page explanation ---------------------------------------------------
+_page_explanations = {
+    "Overview": "Enter a public website URL to fetch its HTML and run a first-pass accessibility scan. The audit does not begin until you submit the form.",
+    "Website audit": "This workspace inspects the returned HTML, flags common accessibility barriers, and presents severity, source evidence, and suggested code fixes. JavaScript-rendered elements may not appear in the scan.",
+    "Models & data": "This area explores the training dataset and reports held-out model metrics. Precision and other metrics are measured from the selected dataset split; they should not be forced to a target value or treated as proof of WCAG conformance.",
+    "Remediation assistant": "Use the finding details to prioritize corrections and build a review checklist. Suggested code is a starting point and must be validated in the real page context.",
+    "Reports & demo": "Review the latest scan, run an offline sample, and export findings as JSON, CSV, or HTML so the evidence can be shared and reproduced.",
+    "Run history": "Compare scans from the current Streamlit session and export the session log. History is temporary unless the app is connected to persistent storage.",
+    "Settings": "Adjust the default request timeout and execution-log preference. Accessify only inspects public URLs you are authorized to test, and automated results are not a full manual accessibility audit.",
+}
+st.markdown(
+    '<div class="ax-explain"><div class="ax-explain-title">What Accessify does</div>'
+    f'<p class="ax-explain-copy">{html.escape(_page_explanations.get(page, _page_explanations["Overview"]))} '
+    'It checks patterns such as missing image alternatives, unnamed links and controls, document metadata, heading structure, embedded-frame titles, and duplicate IDs. '
+    'Use the results to guide manual keyboard, screen-reader, and WCAG review; an automated scan cannot certify a site as accessible.</p></div>',
+    unsafe_allow_html=True,
+)
