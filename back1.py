@@ -1031,39 +1031,6 @@ if page == "Overview":
             "Accessify scans public webpages for common accessibility barriers, explains what it finds, and gives developers evidence-led fixes. Start with a URL; your audit workspace unlocks after the first successful scan.",
         )
 
-        # The data is explicitly labelled: blindness is not the same measure as all vision impairment.
-        stat1, stat2, stat3, stat4 = st.columns(4, gap="medium")
-        with stat1:
-            st.markdown(
-                '<div class="ax-stat-card" style="border:1px solid rgba(145,163,200,.16);background:linear-gradient(145deg,rgba(20,28,44,.88),rgba(10,15,26,.92));padding:19px;border-radius:17px;min-height:128px">'
-                '<div class="ax-eyebrow">BLINDNESS · ESTIMATE</div><div class="ax-stat-number">~43 million</div>'
-                '<div class="ax-stat-label">People blind worldwide · 2020 estimate</div></div>', unsafe_allow_html=True
-            )
-        with stat2:
-            st.markdown(
-                '<div class="ax-stat-card" style="border:1px solid rgba(145,163,200,.16);background:linear-gradient(145deg,rgba(20,28,44,.88),rgba(10,15,26,.92));padding:19px;border-radius:17px;min-height:128px">'
-                '<div class="ax-eyebrow">BROADER SIGHT LOSS</div><div class="ax-stat-number">~1.1 billion</div>'
-                '<div class="ax-stat-label">People living with sight loss</div></div>', unsafe_allow_html=True
-            )
-        with stat3:
-            st.markdown(
-                '<div class="ax-stat-card" style="border:1px solid rgba(145,163,200,.16);background:linear-gradient(145deg,rgba(20,28,44,.88),rgba(10,15,26,.92));padding:19px;border-radius:17px;min-height:128px">'
-                '<div class="ax-eyebrow">WHO · VISION IMPAIRMENT</div><div class="ax-stat-number">2.2 billion</div>'
-                '<div class="ax-stat-label">People with near or distance vision impairment</div></div>', unsafe_allow_html=True
-            )
-        with stat4:
-            st.markdown(
-                '<div class="ax-stat-card" style="border:1px solid rgba(145,163,200,.16);background:linear-gradient(145deg,rgba(20,28,44,.88),rgba(10,15,26,.92));padding:19px;border-radius:17px;min-height:128px">'
-                '<div class="ax-eyebrow">WHO · UNMET NEED</div><div class="ax-stat-number">1 billion</div>'
-                '<div class="ax-stat-label">Cases preventable or not yet addressed</div></div>', unsafe_allow_html=True
-            )
-        st.markdown(
-            '<div class="ax-source" style="margin:9px 2px 22px">Sources: <a href="https://www.iapb.org/learn/visionatlas/" target="_blank">IAPB Vision Atlas</a> (blindness/sight-loss estimates; blindness figure is a 2020 modelled estimate) · '
-            '<a href="https://www.who.int/news-room/fact-sheets/detail/blindness-and-visual-impairment" target="_blank">WHO fact sheet</a> (2.2 billion with near or distance vision impairment). '
-            'These figures describe different levels of vision loss and should not be added together.</div>',
-            unsafe_allow_html=True,
-        )
-
         section("Why Accessify?", "LESS FRICTION · MORE INDEPENDENCE")
         features = st.columns(4, gap="medium")
         feature_content = [
