@@ -110,6 +110,16 @@ st.markdown(
       .ax-feature-card p { margin:0; color:#91a0bc; font-size:11px; line-height:1.65; }
       .ax-code-sample { border:1px solid rgba(105,240,228,.16); border-radius:12px; background:rgba(5,10,18,.6); padding:10px 12px; }
       .ax-full-width-note { color:#8a99b6; font:10px 'DM Mono',monospace; letter-spacing:.7px; }
+      /* Interaction polish: visible keyboard focus, calm hover states, responsive navigation. */
+      :focus-visible { outline:2px solid #69f0e4 !important; outline-offset:3px !important; }
+      .stButton>button:focus-visible,.stDownloadButton>button:focus-visible { box-shadow:0 0 0 3px rgba(105,240,228,.18) !important; }
+      [data-testid="stSidebar"] [role="radiogroup"] { gap:5px; }
+      [data-testid="stSidebar"] [role="radiogroup"] label { border:1px solid transparent; border-radius:10px; padding:7px 10px; transition:background .16s ease,border-color .16s ease; }
+      [data-testid="stSidebar"] [role="radiogroup"] label:hover { background:rgba(105,240,228,.055); border-color:rgba(105,240,228,.12); }
+      [data-testid="stVerticalBlockBorderWrapper"] { transition:border-color .18s ease, transform .18s ease; }
+      [data-testid="stVerticalBlockBorderWrapper"]:hover { border-color:rgba(105,240,228,.23)!important; }
+      .stTextInput input:focus,.stTextArea textarea:focus { border-color:rgba(105,240,228,.65)!important; box-shadow:0 0 0 2px rgba(105,240,228,.08)!important; }
+      [data-testid="stDataFrame"] { box-shadow:0 10px 28px rgba(0,0,0,.10); }
       @media(max-width:700px) { .ax-hero{padding:22px 19px} .ax-title{letter-spacing:-1px} .block-container {padding-left:.75rem;padding-right:.75rem;} }
     </style>
     """,
@@ -982,6 +992,59 @@ if page == "Overview":
     b.metric("MISSING ALT FLAGS", total_missing)
     c.metric("LINK / CONTROL FLAGS", total_flags)
     d.metric("LAST AUDIT", f"{last['elapsed_seconds']:.2f}s" if last else "—")
+
+    # Interactive trend explorer: lets users compare key findings across audits.
+    if st.session_state.ax_runs:
+        section("Session insights", "INTERACTIVE SCAN TREND")
+        with st.container(border=True):
+            trend_col, info_col = st.columns([1.4, 1], gap="large")
+            with trend_col:
+                trend_df = pd.DataFrame(st.session_state.ax_runs).copy().head(12).iloc[::-1]
+                trend_options = {
+                    "Missing alt attributes": "Missing alt",
+                    "Links without accessible names": "Empty links",
+                    "Unlabeled controls": "Unlabeled buttons",
+                    "Experimental risk estimate (%)": "Risk estimate",
+                }
+                chosen_trend = st.selectbox(
+                    "Metric to compare",
+                    list(trend_options.keys()),
+                    key="ax_overview_trend_metric",
+                )
+                trend_field = trend_options[chosen_trend]
+                trend_df[trend_field] = pd.to_numeric(trend_df[trend_field], errors="coerce").fillna(0)
+                trend_df["Scan"] = [f"Scan {i + 1}" for i in range(len(trend_df))]
+                trend_fig = go.Figure(go.Scatter(
+                    x=trend_df["Scan"],
+                    y=trend_df[trend_field],
+                    mode="lines+markers",
+                    line={"color": "#69F0E4", "width": 3, "shape": "spline"},
+                    marker={"size": 8, "color": "#8492FF", "line": {"color": "#DDFBF8", "width": 1}},
+                    customdata=trend_df[["Target", "Time"]].to_numpy(),
+                    hovertemplate="%{x}<br>Value: %{y}<br>%{customdata[0]}<br>%{customdata[1]}<extra></extra>",
+                ))
+                trend_fig.update_layout(
+                    template="plotly_dark",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    margin={"l": 8, "r": 12, "t": 12, "b": 8},
+                    height=260,
+                    showlegend=False,
+                    xaxis={"title": None, "showgrid": False, "tickfont": {"color": "#8797B3"}},
+                    yaxis={"title": chosen_trend, "gridcolor": "rgba(145,163,200,.13)", "rangemode": "tozero"},
+                    hoverlabel={"bgcolor": "#101827", "bordercolor": "#34435e", "font": {"color": "#eef3ff"}},
+                )
+                st.plotly_chart(trend_fig, use_container_width=True, config={"displayModeBar": False, "scrollZoom": False}, key="ax_overview_trend_chart")
+            with info_col:
+                st.markdown("### Compare your scans")
+                st.caption("Choose a metric to see how it changes across your most recent audits.")
+                latest_value = trend_df[trend_field].iloc[-1] if not trend_df.empty else 0
+                previous_value = trend_df[trend_field].iloc[-2] if len(trend_df) > 1 else None
+                st.metric("Latest scan", f"{latest_value:.1f}" if trend_field == "Risk estimate" else f"{int(latest_value)}")
+                if previous_value is not None:
+                    delta = latest_value - previous_value
+                    st.metric("Change vs. previous scan", f"{delta:+.1f}" if trend_field == "Risk estimate" else f"{delta:+.0f}")
+                st.markdown('<div class="ax-callout">This trend reflects only the current Streamlit session. Risk estimates are experimental model outputs, not WCAG scores or certification.</div>', unsafe_allow_html=True)
 
     left, right = st.columns([1.35, 1], gap="large")
     with left:
