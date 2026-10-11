@@ -148,11 +148,88 @@ st.markdown(
       .ax-step { display:flex; gap:12px; align-items:flex-start; padding:12px 0; border-bottom:1px solid rgba(145,163,200,.10); }
       .ax-step:last-child { border-bottom:0; }
       .ax-step-num { flex:0 0 30px; height:30px; display:grid; place-items:center; border-radius:10px; border:1px solid rgba(105,240,228,.2); color:#77ecdf; background:rgba(105,240,228,.06); font:11px 'DM Mono',monospace; }
-      @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:.01ms!important; animation-iteration-count:1!important; scroll-behavior:auto!important; transition-duration:.01ms!important; } }
+      /* Ambient cursor-following light + tactile controls */
+      :root { --ax-mx:50vw; --ax-my:35vh; }
+      body:before { content:""; position:fixed; inset:0; z-index:999; pointer-events:none; background:radial-gradient(260px circle at var(--ax-mx) var(--ax-my),rgba(91,151,255,.095),transparent 72%); opacity:.9; transition:opacity .25s ease; }
+      body.ax-click-glow:after { content:""; position:fixed; z-index:1000; pointer-events:none; left:var(--ax-cx); top:var(--ax-cy); width:20px; height:20px; border-radius:50%; transform:translate(-50%,-50%); border:1px solid rgba(104,166,255,.7); background:radial-gradient(circle,rgba(87,153,255,.28),rgba(87,153,255,.08) 45%,transparent 72%); box-shadow:0 0 35px 12px rgba(61,132,255,.15); animation:axClickRipple .75s ease-out forwards; }
+      @keyframes axClickRipple { 0%{width:12px;height:12px;opacity:.95} 100%{width:150px;height:150px;opacity:0} }
+      .ax-rainbow-word { display:inline-block; white-space:normal; }
+      .ax-rainbow-letter { display:inline-block; color:#eaf0ff; transition:color .16s ease,text-shadow .16s ease,transform .16s ease; will-change:color,transform; }
+      .ax-rainbow-letter.ax-lit { color:hsl(var(--ax-hue,190) 100% 76%); text-shadow:0 0 22px hsl(var(--ax-hue,190) 100% 65% / .38); transform:translateY(-2px); }
+      .stButton>button,.stDownloadButton>button,button[kind="primary"], [data-testid="stFormSubmitButton"] button { transform:translateZ(0); transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s ease,border-color .2s ease,filter .2s ease!important; }
+      .stButton>button:hover,.stDownloadButton>button:hover,[data-testid="stFormSubmitButton"] button:hover { transform:translateY(-4px) scale(1.025)!important; box-shadow:0 12px 30px rgba(75,137,255,.18),0 0 0 1px rgba(105,160,255,.18)!important; filter:brightness(1.06); }
+      .stButton>button:active,.stDownloadButton>button:active,[data-testid="stFormSubmitButton"] button:active { transform:translateY(0) scale(.975)!important; }
+      @media (prefers-reduced-motion:reduce) { body:before,body.ax-click-glow:after { display:none!important; } *,*::before,*::after { animation-duration:.01ms!important; animation-iteration-count:1!important; scroll-behavior:auto!important; transition-duration:.01ms!important; } }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+# Lightweight pointer effects: a dim blue ambient light, click ripple, and letters
+# that shift through the spectrum when the pointer is moved or dragged across them.
+st.markdown(r"""
+<script>
+(() => {
+  if (window.__accessifyPointerFX) return;
+  window.__accessifyPointerFX = true;
+  const root = document.documentElement;
+  let hue = 185;
+  let lastClick = 0;
+  const setPointer = (x, y) => {
+    root.style.setProperty('--ax-mx', x + 'px');
+    root.style.setProperty('--ax-my', y + 'px');
+  };
+  const paintLetters = (x, y) => {
+    document.querySelectorAll('.ax-rainbow-word').forEach(word => {
+      if (!word.dataset.axWrapped) {
+        const text = word.textContent || '';
+        word.textContent = '';
+        [...text].forEach((char, i) => {
+          const span = document.createElement('span');
+          span.className = 'ax-rainbow-letter';
+          span.textContent = char;
+          span.dataset.axIndex = i;
+          if (char === ' ') span.style.width = '.28em';
+          word.appendChild(span);
+        });
+        word.dataset.axWrapped = '1';
+      }
+      word.querySelectorAll('.ax-rainbow-letter').forEach((letter, i) => {
+        const r = letter.getBoundingClientRect();
+        const near = x >= r.left - 15 && x <= r.right + 15 && y >= r.top - 22 && y <= r.bottom + 22;
+        if (near) {
+          hue = (hue + 17 + i * 2) % 360;
+          letter.style.setProperty('--ax-hue', hue);
+          letter.classList.add('ax-lit');
+        } else if (Math.abs(x - (r.left + r.width / 2)) > 95 || Math.abs(y - (r.top + r.height / 2)) > 65) {
+          letter.classList.remove('ax-lit');
+        }
+      });
+    });
+  };
+  document.addEventListener('pointermove', e => {
+    setPointer(e.clientX, e.clientY);
+    paintLetters(e.clientX, e.clientY);
+  }, {passive:true});
+  document.addEventListener('pointerdown', e => {
+    root.style.setProperty('--ax-cx', e.clientX + 'px');
+    root.style.setProperty('--ax-cy', e.clientY + 'px');
+    document.body.classList.remove('ax-click-glow');
+    void document.body.offsetWidth;
+    document.body.classList.add('ax-click-glow');
+    lastClick = Date.now();
+    setTimeout(() => { if (Date.now() - lastClick >= 700) document.body.classList.remove('ax-click-glow'); }, 760);
+  }, {passive:true});
+  const observer = new MutationObserver(() => {
+    document.querySelectorAll('.ax-rainbow-word:not([data-ax-watching])').forEach(el => {
+      el.dataset.axWatching = '1';
+      paintLetters(-1000, -1000);
+    });
+  });
+  observer.observe(document.body, {childList:true, subtree:true});
+})();
+</script>
+""", unsafe_allow_html=True)
 
 
 # --- Session state -------------------------------------------------------------
@@ -975,7 +1052,7 @@ def _run_audit_action(url: str, timeout: int, vectorizer: Any, nlp_model: Any, r
 # --- Sidebar navigation + optional training data --------------------------------
 with st.sidebar:
     st.markdown(
-        '<div class="ax-brand"><div class="ax-mark">A</div><div><div class="ax-brandname">accessify<span style="color:#6be9dd">.</span></div><div class="ax-brandline">ACCESSIBILITY INTELLIGENCE</div></div></div>',
+        '<div class="ax-brand"><div class="ax-mark">A</div><div><div class="ax-brandname">accessify<span style="color:#6be9dd">.</span></div><div class="ax-brandline">WEB ACCESSIBILITY STUDIO</div></div></div>',
         unsafe_allow_html=True,
     )
     workspace_unlocked = bool(st.session_state.get("ax_workspace_unlocked") or st.session_state.ax_last_audit)
@@ -1026,48 +1103,11 @@ if page == "Overview":
 
     if not workspace_unlocked:
         hero(
-            "ACCESSIBILITY INTELLIGENCE · WEB FOR EVERYONE",
-            'The web should work for <span class="ax-gradient">everybody.</span>',
-            "Accessify scans public webpages for common accessibility barriers, explains what it finds, and gives developers evidence-led fixes. Start with a URL; your audit workspace unlocks after the first successful scan.",
+            "WEB FOR ALL · ACCESSIBILITY AUDIT",
+            '<span class="ax-rainbow-word">web for all</span>',
+            "A more inclusive web starts with one scan. Enter a public URL to uncover common accessibility barriers, inspect evidence, and explore practical fixes.",
         )
 
-        section("Why Accessify?", "LESS FRICTION · MORE INDEPENDENCE")
-        features = st.columns(4, gap="medium")
-        feature_content = [
-            ("◉", "Images that explain themselves", "Flags images missing alt text and highlights descriptions that may be generic, so screen-reader users are less likely to miss useful context."),
-            ("↗", "Links with a clear purpose", "Spots links with no accessible name or vague wording, helping people understand where a link goes before activating it."),
-            ("⌁", "Controls people can identify", "Checks buttons and form inputs for accessible names or associated labels, reducing guesswork when navigating without a mouse."),
-            ("⌘", "Evidence, not just a score", "Shows the element, source snippet, issue severity and a suggested code example so developers can investigate and fix the actual problem."),
-        ]
-        for col, (symbol, title, description) in zip(features, feature_content):
-            with col:
-                st.markdown(
-                    f'<div class="ax-feature-card"><div class="ax-card-icon">{symbol}</div><h4>{title}</h4><p>{description}</p></div>',
-                    unsafe_allow_html=True,
-                )
-
-        st.markdown(" ")
-        why_left, why_right = st.columns([1.15, 1], gap="large")
-        with why_left:
-            section("Accessibility is practical engineering", "WHY IT MATTERS")
-            st.markdown(
-                '<div class="ax-info-card" style="border:1px solid rgba(145,163,200,.15);background:linear-gradient(145deg,rgba(20,28,44,.76),rgba(10,15,26,.86));padding:20px;border-radius:16px">'
-                '<p class="ax-intro-copy">A website can look beautiful and still be difficult to use with a screen reader, keyboard, magnification, or other assistive technology. Missing image alternatives, unclear controls, poor heading structure and unnamed links can turn routine tasks into barriers.</p>'
-                '<p class="ax-intro-copy">Accessify gives developers a quick first pass: identify common structural signals, inspect evidence, prioritize review and export findings. It is designed to support better decisions—not to replace people who use assistive technology.</p>'
-                '<div class="ax-pill">HUMAN-CENTRED · EVIDENCE-LED · REVIEWABLE</div></div>',
-                unsafe_allow_html=True,
-            )
-        with why_right:
-            section("What happens after you scan?", "YOUR WORKSPACE")
-            st.markdown(
-                '<div class="ax-info-card" style="border:1px solid rgba(145,163,200,.15);background:linear-gradient(145deg,rgba(20,28,44,.76),rgba(10,15,26,.86));padding:12px 18px;border-radius:16px">'
-                '<div class="ax-step"><span class="ax-step-num">01</span><div><b>Inspect the page</b><div class="ax-list-sub">Fetch a public HTTP(S) page and parse its returned HTML.</div></div></div>'
-                '<div class="ax-step"><span class="ax-step-num">02</span><div><b>Review findings</b><div class="ax-list-sub">Explore metrics, image text signals, issue categories and source evidence.</div></div></div>'
-                '<div class="ax-step"><span class="ax-step-num">03</span><div><b>Remediate and report</b><div class="ax-list-sub">Choose workspace options for fix suggestions, dataset insights, history and exports.</div></div></div>'
-                '</div>', unsafe_allow_html=True,
-            )
-
-        st.markdown(" ")
         section("Start with a website URL", "THE AUDIT STARTS WHEN YOU SUBMIT")
         landing_timeout = int(st.session_state.ax_settings["timeout"])
         with st.container(border=True):
