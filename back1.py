@@ -121,6 +121,34 @@ st.markdown(
       .stTextInput input:focus,.stTextArea textarea:focus { border-color:rgba(105,240,228,.65)!important; box-shadow:0 0 0 2px rgba(105,240,228,.08)!important; }
       [data-testid="stDataFrame"] { box-shadow:0 10px 28px rgba(0,0,0,.10); }
       @media(max-width:700px) { .ax-hero{padding:22px 19px} .ax-title{letter-spacing:-1px} .block-container {padding-left:.75rem;padding-right:.75rem;} }
+      /* Accessify motion system: subtle entrance + responsive hover lift. */
+      @keyframes axRiseIn { from { opacity:0; transform:translateY(16px) scale(.99); } to { opacity:1; transform:translateY(0) scale(1); } }
+      @keyframes axGlowDrift { 0%,100% { opacity:.42; transform:translate3d(0,0,0); } 50% { opacity:.8; transform:translate3d(-8px,5px,0); } }
+      .ax-hero { animation:axRiseIn .65s cubic-bezier(.2,.75,.25,1) both; }
+      .ax-feature-card, .ax-stat-card, .ax-info-card { position:relative; overflow:hidden; isolation:isolate; transition:transform .26s cubic-bezier(.2,.75,.25,1), border-color .26s ease, box-shadow .26s ease, background .26s ease; animation:axRiseIn .55s cubic-bezier(.2,.75,.25,1) both; }
+      .ax-feature-card:before, .ax-stat-card:before, .ax-info-card:before { content:''; position:absolute; z-index:-1; inset:-1px; opacity:0; pointer-events:none; background:radial-gradient(circle at 15% 0%,rgba(105,240,228,.15),transparent 48%); transition:opacity .25s ease; }
+      .ax-feature-card:hover, .ax-stat-card:hover, .ax-info-card:hover { transform:translateY(-7px) scale(1.012); border-color:rgba(105,240,228,.5); box-shadow:0 18px 42px rgba(0,0,0,.22),0 0 26px rgba(105,240,228,.055); }
+      .ax-feature-card:hover:before, .ax-stat-card:hover:before, .ax-info-card:hover:before { opacity:1; }
+      .ax-feature-card:nth-child(2), .ax-stat-card:nth-child(2) { animation-delay:.06s; }
+      .ax-feature-card:nth-child(3), .ax-stat-card:nth-child(3) { animation-delay:.12s; }
+      .ax-feature-card:nth-child(4) { animation-delay:.18s; }
+      [data-testid="stVerticalBlockBorderWrapper"] { transition:transform .23s cubic-bezier(.2,.75,.25,1),border-color .23s ease,box-shadow .23s ease; }
+      [data-testid="stVerticalBlockBorderWrapper"]:hover { transform:translateY(-3px); box-shadow:0 15px 38px rgba(0,0,0,.17); }
+      [data-testid="stSidebar"] [role="radiogroup"] label { margin:2px 0; padding:10px 12px; border:1px solid rgba(145,163,200,.09); background:rgba(255,255,255,.015); border-radius:12px; transition:all .2s ease; }
+      [data-testid="stSidebar"] [role="radiogroup"] label:hover { transform:translateX(4px); background:rgba(105,240,228,.07); border-color:rgba(105,240,228,.32); }
+      [data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) { background:linear-gradient(100deg,rgba(105,240,228,.12),rgba(124,140,255,.09)); border-color:rgba(105,240,228,.4); }
+      .ax-stat-number { color:#f1f5ff; font-size:clamp(25px,2.6vw,38px); font-weight:850; line-height:1.08; letter-spacing:-1.4px; }
+      .ax-stat-label { color:#8f9fba; font:10px 'DM Mono',monospace; letter-spacing:1.1px; text-transform:uppercase; margin-top:8px; }
+      .ax-card-icon { width:38px; height:38px; display:grid; place-items:center; border-radius:12px; font-size:19px; margin-bottom:15px; border:1px solid rgba(105,240,228,.18); background:rgba(105,240,228,.08); }
+      .ax-feature-card h4 { color:#edf3ff; }
+      .ax-feature-card p { color:#91a0bc; font-size:12px; }
+      .ax-intro-copy { color:#a2aec6; font-size:14px; line-height:1.8; }
+      .ax-source { color:#71809c; font-size:10px; line-height:1.6; }
+      .ax-launch-panel { border:1px solid rgba(105,240,228,.24); border-radius:20px; padding:22px; background:radial-gradient(circle at 100% 0%,rgba(105,240,228,.09),transparent 35%),linear-gradient(145deg,rgba(19,29,47,.9),rgba(10,15,27,.95)); box-shadow:0 15px 45px rgba(0,0,0,.14); }
+      .ax-step { display:flex; gap:12px; align-items:flex-start; padding:12px 0; border-bottom:1px solid rgba(145,163,200,.10); }
+      .ax-step:last-child { border-bottom:0; }
+      .ax-step-num { flex:0 0 30px; height:30px; display:grid; place-items:center; border-radius:10px; border:1px solid rgba(105,240,228,.2); color:#77ecdf; background:rgba(105,240,228,.06); font:11px 'DM Mono',monospace; }
+      @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:.01ms!important; animation-iteration-count:1!important; scroll-behavior:auto!important; transition-duration:.01ms!important; } }
     </style>
     """,
     unsafe_allow_html=True,
@@ -132,6 +160,8 @@ if "ax_runs" not in st.session_state:
     st.session_state.ax_runs = []
 if "ax_last_audit" not in st.session_state:
     st.session_state.ax_last_audit = None
+if "ax_workspace_unlocked" not in st.session_state:
+    st.session_state.ax_workspace_unlocked = bool(st.session_state.ax_last_audit)
 if "ax_settings" not in st.session_state:
     st.session_state.ax_settings = {"timeout": 12, "show_terminal": True}
 
@@ -927,10 +957,11 @@ def _run_audit_action(url: str, timeout: int, vectorizer: Any, nlp_model: Any, r
         log("AUDIT COMPLETE — RENDERING RESULTS")
         st.session_state.ax_audit_logs = logs
         add_history(result)
+        st.session_state.ax_workspace_unlocked = True
         if terminal is not None:
             terminal.empty()
         st.toast("ACCESSIFY AUDIT COMPLETE", icon="⚡")
-        st.success(f"Audit complete for {result['final_url']}")
+        st.rerun()
     except (requests.RequestException, ValueError, socket.gaierror) as exc:
         if terminal is not None:
             terminal.empty()
@@ -947,58 +978,171 @@ with st.sidebar:
         '<div class="ax-brand"><div class="ax-mark">A</div><div><div class="ax-brandname">accessify<span style="color:#6be9dd">.</span></div><div class="ax-brandline">ACCESSIBILITY INTELLIGENCE</div></div></div>',
         unsafe_allow_html=True,
     )
-    st.markdown('<div class="ax-eyebrow">WORKSPACE</div>', unsafe_allow_html=True)
+    workspace_unlocked = bool(st.session_state.get("ax_workspace_unlocked") or st.session_state.ax_last_audit)
+    st.markdown('<div class="ax-eyebrow">' + ('WORKSPACE OPTIONS' if workspace_unlocked else 'WELCOME') + '</div>', unsafe_allow_html=True)
+    all_pages = ["Overview", "Website audit", "Models & data", "Remediation assistant", "Reports & demo", "Run history", "Settings"]
+    nav_pages = all_pages if workspace_unlocked else ["Overview"]
+    # Radio choices keep navigation selectable and compact instead of presenting a button wall.
     page = st.radio(
         "Navigation",
-        ["Overview", "Website audit", "Models & data", "Remediation assistant", "Reports & demo", "Run history", "Settings"],
+        nav_pages,
         label_visibility="collapsed",
         key="ax_navigation",
     )
     st.markdown("---")
-    st.markdown('<div class="ax-eyebrow">SYSTEM STATUS</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div style="margin:10px 0 8px"><span class="ax-status"><span class="ax-dot ax-live"></span> AUDIT ENGINE READY</span></div>'
-        '<div style="font-size:11px;color:#8492ad;line-height:1.8">HTTP scanner · NLP prototype<br>Session-based results</div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown("---")
-    st.markdown('<div class="ax-eyebrow">MODEL DATA</div>', unsafe_allow_html=True)
-    uploaded_csv = st.file_uploader(
-        "Optional training CSV",
-        type=["csv"],
-        help="Expected columns: webURL, Description, initialImpactScore. Uploading this replaces the local CSV for this session.",
-        key="ax_training_upload",
-    )
-    st.caption("Accessify automatically loads the bundled Original_full_data (1).csv beside app.py. Upload another CSV only to override it for this session.")
-    st.markdown('<div class="ax-mini">ACCESSIFY MK2 · ACCESSIBILITY STUDIO</div>', unsafe_allow_html=True)
+    if workspace_unlocked:
+        st.markdown('<div class="ax-eyebrow">SYSTEM STATUS</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div style="margin:10px 0 8px"><span class="ax-status"><span class="ax-dot ax-live"></span> AUDIT ENGINE READY</span></div>'
+            '<div style="font-size:11px;color:#8492ad;line-height:1.8">HTTP scanner · NLP prototype<br>Session-based results</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown("---")
+        st.markdown('<div class="ax-eyebrow">MODEL DATA</div>', unsafe_allow_html=True)
+        uploaded_csv = st.file_uploader(
+            "Optional training CSV",
+            type=["csv"],
+            help="Expected columns: webURL, Description, initialImpactScore. Uploading this replaces the local CSV for this session.",
+            key="ax_training_upload",
+        )
+        st.caption("The bundled Original_full_data (1).csv is loaded automatically when available. Upload another CSV only to override it for this session.")
+        st.markdown('<div class="ax-mini">ACCESSIFY MK2 · ACCESSIBILITY STUDIO</div>', unsafe_allow_html=True)
+    else:
+        uploaded_csv = None
+        st.markdown(
+            '<div class="ax-callout" style="margin-top:10px">Your workspace tools appear here after the first successful website scan.</div>'
+            '<div style="font-size:10px;color:#73819c;line-height:1.7;margin-top:12px">ACCESSIBILITY IS NOT AN EXTRA. IT IS PART OF THE EXPERIENCE.</div>',
+            unsafe_allow_html=True,
+        )
 
 csv_bytes = uploaded_csv.getvalue() if uploaded_csv is not None else None
 vectorizer, nlp_model, rf_model, model_source, training_websites, training_records = train_models(csv_bytes)
 
 
-# --- Overview -----------------------------------------------------------------
+# --- Overview / Landing ---------------------------------------------------------
 if page == "Overview":
-    hero(
-        "AUTOMATED ACCESSIBILITY AUDITOR",
-        'Make the web more <span class="ax-gradient">accessible.</span>',
-        "Scan a public webpage for missing alternatives, unnamed links and controls, form-label problems, document metadata, heading hierarchy and other review signals. Inspect source-line evidence, suggested fixes and experimental model outputs.",
-    )
-    total_runs = len(st.session_state.ax_runs)
     last = st.session_state.ax_last_audit
-    total_missing = sum(int(run.get("Missing alt", 0)) for run in st.session_state.ax_runs)
-    total_flags = sum(int(run.get("Empty links", 0)) + int(run.get("Unlabeled buttons", 0)) for run in st.session_state.ax_runs)
-    a, b, c, d = st.columns(4)
-    a.metric("AUDITS THIS SESSION", total_runs)
-    b.metric("MISSING ALT FLAGS", total_missing)
-    c.metric("LINK / CONTROL FLAGS", total_flags)
-    d.metric("LAST AUDIT", f"{last['elapsed_seconds']:.2f}s" if last else "—")
+    workspace_unlocked = bool(st.session_state.get("ax_workspace_unlocked") or last)
 
-    # Interactive trend explorer: lets users compare key findings across audits.
-    if st.session_state.ax_runs:
-        section("Session insights", "INTERACTIVE SCAN TREND")
+    if not workspace_unlocked:
+        hero(
+            "ACCESSIBILITY INTELLIGENCE · WEB FOR EVERYONE",
+            'The web should work for <span class="ax-gradient">everybody.</span>',
+            "Accessify scans public webpages for common accessibility barriers, explains what it finds, and gives developers evidence-led fixes. Start with a URL; your audit workspace unlocks after the first successful scan.",
+        )
+
+        # The data is explicitly labelled: blindness is not the same measure as all vision impairment.
+        stat1, stat2, stat3, stat4 = st.columns(4, gap="medium")
+        with stat1:
+            st.markdown(
+                '<div class="ax-stat-card" style="border:1px solid rgba(145,163,200,.16);background:linear-gradient(145deg,rgba(20,28,44,.88),rgba(10,15,26,.92));padding:19px;border-radius:17px;min-height:128px">'
+                '<div class="ax-eyebrow">BLINDNESS · ESTIMATE</div><div class="ax-stat-number">~43 million</div>'
+                '<div class="ax-stat-label">People blind worldwide · 2020 estimate</div></div>', unsafe_allow_html=True
+            )
+        with stat2:
+            st.markdown(
+                '<div class="ax-stat-card" style="border:1px solid rgba(145,163,200,.16);background:linear-gradient(145deg,rgba(20,28,44,.88),rgba(10,15,26,.92));padding:19px;border-radius:17px;min-height:128px">'
+                '<div class="ax-eyebrow">BROADER SIGHT LOSS</div><div class="ax-stat-number">~1.1 billion</div>'
+                '<div class="ax-stat-label">People living with sight loss</div></div>', unsafe_allow_html=True
+            )
+        with stat3:
+            st.markdown(
+                '<div class="ax-stat-card" style="border:1px solid rgba(145,163,200,.16);background:linear-gradient(145deg,rgba(20,28,44,.88),rgba(10,15,26,.92));padding:19px;border-radius:17px;min-height:128px">'
+                '<div class="ax-eyebrow">WHO · VISION IMPAIRMENT</div><div class="ax-stat-number">2.2 billion</div>'
+                '<div class="ax-stat-label">People with near or distance vision impairment</div></div>', unsafe_allow_html=True
+            )
+        with stat4:
+            st.markdown(
+                '<div class="ax-stat-card" style="border:1px solid rgba(145,163,200,.16);background:linear-gradient(145deg,rgba(20,28,44,.88),rgba(10,15,26,.92));padding:19px;border-radius:17px;min-height:128px">'
+                '<div class="ax-eyebrow">WHO · UNMET NEED</div><div class="ax-stat-number">1 billion</div>'
+                '<div class="ax-stat-label">Cases preventable or not yet addressed</div></div>', unsafe_allow_html=True
+            )
+        st.markdown(
+            '<div class="ax-source" style="margin:9px 2px 22px">Sources: <a href="https://www.iapb.org/learn/visionatlas/" target="_blank">IAPB Vision Atlas</a> (blindness/sight-loss estimates; blindness figure is a 2020 modelled estimate) · '
+            '<a href="https://www.who.int/news-room/fact-sheets/detail/blindness-and-visual-impairment" target="_blank">WHO fact sheet</a> (2.2 billion with near or distance vision impairment). '
+            'These figures describe different levels of vision loss and should not be added together.</div>',
+            unsafe_allow_html=True,
+        )
+
+        section("Why Accessify?", "LESS FRICTION · MORE INDEPENDENCE")
+        features = st.columns(4, gap="medium")
+        feature_content = [
+            ("◉", "Images that explain themselves", "Flags images missing alt text and highlights descriptions that may be generic, so screen-reader users are less likely to miss useful context."),
+            ("↗", "Links with a clear purpose", "Spots links with no accessible name or vague wording, helping people understand where a link goes before activating it."),
+            ("⌁", "Controls people can identify", "Checks buttons and form inputs for accessible names or associated labels, reducing guesswork when navigating without a mouse."),
+            ("⌘", "Evidence, not just a score", "Shows the element, source snippet, issue severity and a suggested code example so developers can investigate and fix the actual problem."),
+        ]
+        for col, (symbol, title, description) in zip(features, feature_content):
+            with col:
+                st.markdown(
+                    f'<div class="ax-feature-card"><div class="ax-card-icon">{symbol}</div><h4>{title}</h4><p>{description}</p></div>',
+                    unsafe_allow_html=True,
+                )
+
+        st.markdown(" ")
+        why_left, why_right = st.columns([1.15, 1], gap="large")
+        with why_left:
+            section("Accessibility is practical engineering", "WHY IT MATTERS")
+            st.markdown(
+                '<div class="ax-info-card" style="border:1px solid rgba(145,163,200,.15);background:linear-gradient(145deg,rgba(20,28,44,.76),rgba(10,15,26,.86));padding:20px;border-radius:16px">'
+                '<p class="ax-intro-copy">A website can look beautiful and still be difficult to use with a screen reader, keyboard, magnification, or other assistive technology. Missing image alternatives, unclear controls, poor heading structure and unnamed links can turn routine tasks into barriers.</p>'
+                '<p class="ax-intro-copy">Accessify gives developers a quick first pass: identify common structural signals, inspect evidence, prioritize review and export findings. It is designed to support better decisions—not to replace people who use assistive technology.</p>'
+                '<div class="ax-pill">HUMAN-CENTRED · EVIDENCE-LED · REVIEWABLE</div></div>',
+                unsafe_allow_html=True,
+            )
+        with why_right:
+            section("What happens after you scan?", "YOUR WORKSPACE")
+            st.markdown(
+                '<div class="ax-info-card" style="border:1px solid rgba(145,163,200,.15);background:linear-gradient(145deg,rgba(20,28,44,.76),rgba(10,15,26,.86));padding:12px 18px;border-radius:16px">'
+                '<div class="ax-step"><span class="ax-step-num">01</span><div><b>Inspect the page</b><div class="ax-list-sub">Fetch a public HTTP(S) page and parse its returned HTML.</div></div></div>'
+                '<div class="ax-step"><span class="ax-step-num">02</span><div><b>Review findings</b><div class="ax-list-sub">Explore metrics, image text signals, issue categories and source evidence.</div></div></div>'
+                '<div class="ax-step"><span class="ax-step-num">03</span><div><b>Remediate and report</b><div class="ax-list-sub">Choose workspace options for fix suggestions, dataset insights, history and exports.</div></div></div>'
+                '</div>', unsafe_allow_html=True,
+            )
+
+        st.markdown(" ")
+        section("Start with a website URL", "THE AUDIT STARTS WHEN YOU SUBMIT")
+        landing_timeout = int(st.session_state.ax_settings["timeout"])
         with st.container(border=True):
-            trend_col, info_col = st.columns([1.4, 1], gap="large")
-            with trend_col:
+            st.markdown("### Put a page under the accessibility microscope")
+            st.caption("Enter a complete public URL. Press Enter in the URL field or select Start audit. Only scan websites you own or have permission to test.")
+            with st.form("ax_landing_audit_form", clear_on_submit=False):
+                target_url = st.text_input(
+                    "Website URL",
+                    value="",
+                    placeholder="https://example.com",
+                    help="Include https:// or http://. Local and private network targets are blocked.",
+                    key="ax_landing_url",
+                )
+                with st.expander("Audit settings", expanded=False):
+                    landing_timeout = st.slider("Request timeout (seconds)", 5, 30, landing_timeout, key="ax_landing_timeout")
+                launch_audit = st.form_submit_button("⚡ START ACCESSIBILITY AUDIT", type="primary", use_container_width=True)
+            if launch_audit:
+                _run_audit_action(target_url, landing_timeout, vectorizer, nlp_model, rf_model)
+
+        st.markdown(
+            '<div class="ax-footer"><span>ACCESSIFY MK2 / ACCESSIBILITY INTELLIGENCE</span><span>MAKE THE WEB WORK FOR MORE PEOPLE</span></div>',
+            unsafe_allow_html=True,
+        )
+
+    else:
+        hero(
+            "YOUR AUDIT WORKSPACE",
+            'Your results, ready to <span class="ax-gradient">explore.</span>',
+            "The initial scan is complete. Use the selectable workspace options in the sidebar to inspect model diagnostics, remediation suggestions, report exports, or your scan history.",
+        )
+        total_runs = len(st.session_state.ax_runs)
+        total_missing = sum(int(run.get("Missing alt", 0)) for run in st.session_state.ax_runs)
+        total_flags = sum(int(run.get("Empty links", 0)) + int(run.get("Unlabeled buttons", 0)) for run in st.session_state.ax_runs)
+        a, b, c, d = st.columns(4, gap="medium")
+        a.metric("AUDITS THIS SESSION", total_runs)
+        b.metric("MISSING ALT FLAGS", total_missing)
+        c.metric("LINK / CONTROL FLAGS", total_flags)
+        d.metric("LATEST SCAN", f"{last['elapsed_seconds']:.2f}s" if last else "—")
+
+        if st.session_state.ax_runs:
+            section("Session insights", "INTERACTIVE SCAN TREND")
+            with st.container(border=True):
                 trend_df = pd.DataFrame(st.session_state.ax_runs).copy().head(12).iloc[::-1]
                 trend_options = {
                     "Missing alt attributes": "Missing alt",
@@ -1006,90 +1150,44 @@ if page == "Overview":
                     "Unlabeled controls": "Unlabeled buttons",
                     "Experimental risk estimate (%)": "Risk estimate",
                 }
-                chosen_trend = st.selectbox(
-                    "Metric to compare",
-                    list(trend_options.keys()),
-                    key="ax_overview_trend_metric",
-                )
+                chosen_trend = st.selectbox("Choose a metric to compare", list(trend_options.keys()), key="ax_overview_trend_metric")
                 trend_field = trend_options[chosen_trend]
                 trend_df[trend_field] = pd.to_numeric(trend_df[trend_field], errors="coerce").fillna(0)
                 trend_df["Scan"] = [f"Scan {i + 1}" for i in range(len(trend_df))]
                 trend_fig = go.Figure(go.Scatter(
-                    x=trend_df["Scan"],
-                    y=trend_df[trend_field],
-                    mode="lines+markers",
+                    x=trend_df["Scan"], y=trend_df[trend_field], mode="lines+markers",
                     line={"color": "#69F0E4", "width": 3, "shape": "spline"},
                     marker={"size": 8, "color": "#8492FF", "line": {"color": "#DDFBF8", "width": 1}},
                     customdata=trend_df[["Target", "Time"]].to_numpy(),
                     hovertemplate="%{x}<br>Value: %{y}<br>%{customdata[0]}<br>%{customdata[1]}<extra></extra>",
                 ))
                 trend_fig.update_layout(
-                    template="plotly_dark",
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(0,0,0,0)",
-                    margin={"l": 8, "r": 12, "t": 12, "b": 8},
-                    height=260,
-                    showlegend=False,
+                    template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    margin={"l": 8, "r": 12, "t": 12, "b": 8}, height=260, showlegend=False,
                     xaxis={"title": None, "showgrid": False, "tickfont": {"color": "#8797B3"}},
                     yaxis={"title": chosen_trend, "gridcolor": "rgba(145,163,200,.13)", "rangemode": "tozero"},
                     hoverlabel={"bgcolor": "#101827", "bordercolor": "#34435e", "font": {"color": "#eef3ff"}},
                 )
                 st.plotly_chart(trend_fig, use_container_width=True, config={"displayModeBar": False, "scrollZoom": False}, key="ax_overview_trend_chart")
-            with info_col:
-                st.markdown("### Compare your scans")
-                st.caption("Choose a metric to see how it changes across your most recent audits.")
-                latest_value = trend_df[trend_field].iloc[-1] if not trend_df.empty else 0
-                previous_value = trend_df[trend_field].iloc[-2] if len(trend_df) > 1 else None
-                st.metric("Latest scan", f"{latest_value:.1f}" if trend_field == "Risk estimate" else f"{int(latest_value)}")
-                if previous_value is not None:
-                    delta = latest_value - previous_value
-                    st.metric("Change vs. previous scan", f"{delta:+.1f}" if trend_field == "Risk estimate" else f"{delta:+.0f}")
-                st.markdown('<div class="ax-callout">This trend reflects only the current Streamlit session. Risk estimates are experimental model outputs, not WCAG scores or certification.</div>', unsafe_allow_html=True)
 
-    left, right = st.columns([1.35, 1], gap="large")
-    with left:
-        section("Launch an audit", "PUBLIC WEBSITE URL")
-        with st.container(border=True):
-            quick_url = st.text_input("Target URL", value="https://en.wikipedia.org/wiki/Main_Page", key="ax_quick_url")
-            q1, q2 = st.columns([1, 1])
-            with q1:
-                quick_timeout = st.slider("Request timeout", 5, 30, int(st.session_state.ax_settings["timeout"]), key="ax_quick_timeout")
-            with q2:
-                st.markdown(" ")
-                st.caption("Only scan websites you own or have permission to test.")
-            if st.button("⚡ RUN ACCESSIBILITY AUDIT", type="primary", use_container_width=True, key="ax_quick_audit"):
-                _run_audit_action(quick_url, quick_timeout, vectorizer, nlp_model, rf_model)
-    with right:
-        section("Latest result", "LIVE SESSION SNAPSHOT")
-        with st.container(border=True):
-            if not last:
-                st.markdown('<div class="ax-mini">AWAITING FIRST AUDIT</div>', unsafe_allow_html=True)
-                st.markdown("### Your dashboard is ready")
-                st.caption("Run your first scan to populate metrics, classifier findings, and model diagnostics.")
-                st.progress(0, text="No audit has run yet")
-            else:
+        if last:
+            section("Latest scan snapshot", "CURRENT AUDIT")
+            with st.container(border=True):
                 st.markdown(f'<span class="ax-status">HTTP {last["status_code"]} · {last["elapsed_seconds"]:.2f}s</span>', unsafe_allow_html=True)
-                st.markdown("### " + str(last["page_title"]))
+                st.markdown("### " + html.escape(str(last["page_title"])))
                 st.caption(last["final_url"])
-                r1, r2, r3 = st.columns(3)
-                r1.metric("Images", last["images_total"])
+                r1, r2, r3, r4 = st.columns(4)
+                r1.metric("Images scanned", last["images_total"])
                 r2.metric("Missing alt", last["missing_alt"])
-                r3.metric("Risk estimate", f"{last['risk_probability']:.0f}%")
-                st.caption("Risk estimate is experimental and is not an accessibility compliance score.")
-        section("Audit pipeline", "HOW IT WORKS")
-        with st.container(border=True):
-            for n, title, desc in [
-                ("01", "Fetch page", "Request HTML and parse the document structure."),
-                ("02", "Inspect structure", "Check image text, links, controls, forms, headings, frames, IDs, language and title."),
-                ("03", "Explain & report", "Show evidence, recommend fixes, and export findings for follow-up."),
-            ]:
-                st.markdown(
-                    f'<div class="ax-list-row"><div style="display:flex;gap:12px;align-items:center"><span style="color:#70e9df;font:12px DM Mono,monospace">{n}</span><div><div class="ax-list-title">{title}</div><div class="ax-list-sub">{desc}</div></div></div><span class="ax-tag">PIPELINE</span></div>',
-                    unsafe_allow_html=True,
-                )
-    if st.session_state.ax_last_audit:
-        show_audit_results(st.session_state.ax_last_audit, rf_model)
-    st.markdown('<div class="ax-footer"><span>ACCESSIFY MK2 / ACCESSIBILITY INTELLIGENCE</span><span>PROTOTYPE · SESSION-BASED HISTORY</span></div>', unsafe_allow_html=True)
+                r3.metric("Unnamed links", last["empty_links"])
+                r4.metric("Unlabeled controls", last["unlabeled_buttons"])
+                st.caption("The model risk estimate is experimental; it is not a WCAG compliance score or certification.")
+            show_audit_results(last, rf_model)
+
+        st.markdown(
+            '<div class="ax-footer"><span>ACCESSIFY MK2 / ACCESSIBILITY INTELLIGENCE</span><span>OPTIONS ARE IN THE WORKSPACE MENU</span></div>',
+            unsafe_allow_html=True,
+        )
 
 
 # --- Website audit -------------------------------------------------------------
